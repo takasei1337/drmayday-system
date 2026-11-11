@@ -1,0 +1,148 @@
+// ==============================================================================
+// PRISMA SCHEMA CHO CSDL PHỤ (SUB DATABASE TRÊN SUPABASE)
+// Quản lý các module mở rộng theo đúng yêu cầu Slide APIs mà CSDL chung không có
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("SUB_DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------------------------
+// 1. TOKEN BLACKLIST (Auth & Logout - Slide 2)
+// ------------------------------------------------------------------------------
+model TokenBlacklist {
+  id             Int      @id @default(autoincrement())
+  token          String   @unique
+  maTaiKhoan     BigInt?  @map("ma_tai_khoan")
+  lyDoThuHoi     String?  @default("LOGOUT") @map("ly_do_thu_hoi")
+  thoiDiemHetHan DateTime @map("thoi_diem_het_han")
+  thoiDiemTao    DateTime @default(now()) @map("thoi_diem_tao")
+
+  @@index([token])
+  @@index([thoiDiemHetHan])
+  @@map("token_blacklist")
+}
+
+// ------------------------------------------------------------------------------
+// 2. KHOA / PHÒNG BAN CHUYÊN MÔN (Departments - Slide 4)
+// (CSDL chung chỉ có chinhanh & phongkham, thiếu bảng departments theo Slide 4)
+// ------------------------------------------------------------------------------
+model Department {
+  id             Int      @id @default(autoincrement())
+  maChiNhanh     BigInt   @map("ma_chi_nhanh")      // Khóa logic trỏ tới chinhanh ở DB chính
+  departmentCode String   @unique @map("department_code")
+  departmentName String   @map("department_name")
+  description    String?  @map("description")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("departments")
+}
+
+// ------------------------------------------------------------------------------
+// 3. THÔNG BÁO ĐẨY & FCM DEVICE TOKENS (Push Notifications - Slide 10)
+// ------------------------------------------------------------------------------
+model DeviceToken {
+  id         Int      @id @default(autoincrement())
+  userId     BigInt   @map("user_id")              // ma_tai_khoan
+  fcmToken   String   @unique @map("fcm_token")
+  deviceType String?  @default("WEB") @map("device_type") // WEB, ANDROID, IOS
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  title     String   @map("title")
+  body      String   @map("body")
+  isRead    Boolean  @default(false) @map("is_read")
+  type      String   @default("SYSTEM") @map("type") // APPOINTMENT, UAS7_REMINDER, PRESCRIPTION
+  data      Json?    @map("data")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+// ------------------------------------------------------------------------------
+// 4. BỘ TẠO MẪU PHIẾU KHÁM ĐỘNG (Dynamic Form Builder - Slide 11)
+// ------------------------------------------------------------------------------
+model Template {
+  id           Int               @id @default(autoincrement())
+  codeTemplate String            @unique @map("code_template") // Mã định danh duy nhất (VD: TMPL_MAYDAY_01)
+  title        String            @map("title")
+  description  String?           @map("description")
+  isActive     Boolean           @default(true) @map("is_active")
+  version      Int               @default(1) @map("version")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  sections     TemplateSection[]
+
+  @@map("templates")
+}
+
+model TemplateSection {
+  id          Int                @id @default(autoincrement())
+  templateId  Int                @map("template_id")
+  sectionName String             @map("section_name")
+  orderIndex  Int                @default(0) @map("order_index")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  template    Template           @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  questions   TemplateQuestion[]
+
+  @@map("template_sections")
+}
+
+model TemplateQuestion {
+  id           Int             @id @default(autoincrement())
+  sectionId    Int             @map("section_id")
+  questionText String          @map("question_text")
+  questionType String          @map("question_type") // TEXT, NUMBER, SELECT, MULTI_SELECT, RADIO, DATE
+  options      Json?           @map("options")       // Mảng các lựa chọn nếu là SELECT/RADIO
+  isRequired   Boolean         @default(false) @map("is_required")
+  orderIndex   Int             @default(0) @map("order_index")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  section      TemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("template_questions")
+}
+
+// ------------------------------------------------------------------------------
+// 5. MỞ RỘNG KHO ẢNH TỔN THƯƠNG & STORAGE (Lesion Media & Bucket - Slide 8 & 9)
+// ------------------------------------------------------------------------------
+model AnhTonThuongMoRong {
+  id              Int      @id @default(autoincrement())
+  maHoSo          BigInt   @map("ma_ho_so")
+  maTaiKhoan      BigInt   @map("ma_tai_khoan")
+  maTepDinhKemGoc BigInt?  @map("ma_tep_dinh_kem_goc")
+  bucketName      String   @default("mayday-attachments") @map("bucket_name")
+  storagePath     String   @map("storage_path")
+  publicUrl       String   @map("public_url")
+  dinhDangTep     String?  @map("dinh_dang_tep")
+  dungLuongBytes  BigInt?  @map("dung_luong_bytes")
+  toaDoX          Float?   @map("toa_do_x")
+  toaDoY          Float?   @map("toa_do_y")
+  vungCoThe       String?  @map("vung_co_the")
+  ghiChuLamSang   String?  @map("ghi_chu_lam_sang")
+  diemNguaNrs     Int?     @map("diem_ngua_nrs")
+  diemDauNrs      Int?     @map("diem_dau_nrs")
+  thoiDiemChup    DateTime @default(now()) @map("thoi_diem_chup")
+  thoiDiemTao     DateTime @default(now()) @map("thoi_diem_tao")
+
+  @@index([maHoSo])
+  @@index([maTaiKhoan])
+  @@map("anh_ton_thuong_mo_rong")
+}

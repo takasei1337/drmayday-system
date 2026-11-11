@@ -1,0 +1,42 @@
+meta {
+  name: 05. Đăng ký tài khoản Bệnh nhân mới (Sheet 1.1 signup)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/signup
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "full_name": "Nguyễn Văn Thử Nghiệm",
+    "phone": "{{testPatientPhone}}",
+    "password": "{{testPatientPassword}}",
+    "gender": "male"
+  }
+}
+
+script:pre-request {
+  // Tự động sinh số điện thoại hợp lệ (đầu 09...) để không trùng lặp CSDL
+  const randomDigits = Math.floor(1000000 + Math.random() * 9000000);
+  const phone = "09" + randomDigits;
+  bru.setEnvVar("testPatientPhone", phone);
+  bru.setEnvVar("testPatientUser", phone);
+  bru.setEnvVar("testPatientPassword", "Patient@123");
+}
+
+script:post-response {
+  if ((res.getStatus() === 200 || res.getStatus() === 201) && res.getBody().data) {
+    console.log("✅ Đã tạo thành công Bệnh nhân mới theo Sheet 1.1 signup!");
+    console.log("📱 Số điện thoại đăng nhập: " + bru.getEnvVar("testPatientUser"));
+    console.log("🔒 Mật khẩu: " + bru.getEnvVar("testPatientPassword"));
+    console.log("👉 Bây giờ bạn có thể chạy request '03. Đăng nhập Bệnh Nhân' để lấy token thật!");
+  }
+}

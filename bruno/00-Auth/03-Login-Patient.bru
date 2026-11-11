@@ -1,0 +1,42 @@
+meta {
+  name: 03. Đăng nhập Bệnh Nhân (Sheet 1.2 login)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "phone": "{{testPatientUser}}",
+    "password": "{{testPatientPassword}}"
+  }
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("testPatientUser")) {
+    bru.setEnvVar("testPatientUser", "0912345678");
+  }
+  if (!bru.getEnvVar("testPatientPassword")) {
+    bru.setEnvVar("testPatientPassword", "Patient@123");
+  }
+}
+
+script:post-response {
+  const token = res.getBody().data && (res.getBody().data.access_token || res.getBody().data.token);
+  if (res.getStatus() === 200 && token) {
+    bru.setEnvVar("patientToken", token);
+    console.log("✅ Đăng nhập Bệnh nhân thành công!");
+    console.log("🔑 Đã lưu access_token Bệnh nhân vào biến {{patientToken}}");
+  } else {
+    console.warn("⚠️ Nếu đăng nhập thất bại do tài khoản chưa tồn tại, hãy chạy request '05. Đăng ký tài khoản Bệnh nhân mới' trước!");
+  }
+}

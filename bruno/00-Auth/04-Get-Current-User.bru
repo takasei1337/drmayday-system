@@ -1,0 +1,15 @@
+meta {
+  name: 04. Lấy thông tin tài khoản hiện tại (/me)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}

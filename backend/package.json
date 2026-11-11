@@ -1,0 +1,45 @@
+{
+  "name": "drmayday-backend",
+  "version": "1.0.0",
+  "description": "DrMayDay - Hệ thống Quản lý Khám bệnh & Theo dõi Mề đay (Backend API)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "build": "prisma generate",
+    "dev": "node --watch src/server.js",
+    "db:pull": "node scripts/pull-main-db.js",
+    "zip:ignored": "node scripts/zip-ignored.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "dotenv -e ../.env -- prisma db push",
+    "prisma:studio": "dotenv -e ../.env -- prisma studio",
+    "prisma:migrate": "dotenv -e ../.env -- prisma migrate dev",
+    "test": "echo \"Testing with Bruno CLI: bru run bruno\""
+  },
+  "keywords": [
+    "drmayday",
+    "express",
+    "postgresql",
+    "prisma",
+    "supabase",
+    "medical",
+    "uas7"
+  ],
+  "author": "DrMayDay Team",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.3",
+    "ws": "^8.22.2"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.4",
+    "prisma": "^6.4.1"
+  }
+}

@@ -1,0 +1,10 @@
+vars {
+  baseUrl: http://localhost:5000/api
+  adminUser: 0900000001
+  adminPassword: 
+  doctorUser: 0901000002
+  doctorPassword: 
+  adminToken: 
+  doctorToken: 
+  patientToken: 
+}

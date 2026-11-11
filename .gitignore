@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+
+# Snapshots & Generated Data
+database_snapshot/
+
+# Heavy Documentation & Slides (Gửi qua chat/drive)
+docs/
+From hospital/
+Slide APIs/
+
+# Archives
+*.zip
+
+# Build outputs & Logs
+dist/
+build/
+*.log
+.DS_Store
+.vscode
+
+# Internal Guidelines & Agent Customizations
+AGENTS.md
+.agents/
+
+# Bruno Local Environment (Chứa tài khoản mật khẩu nội bộ)
+bruno/environments/Local.bru

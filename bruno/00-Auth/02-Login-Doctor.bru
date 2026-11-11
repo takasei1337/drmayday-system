@@ -1,0 +1,31 @@
+meta {
+  name: 02. Đăng nhập Bác Sĩ (Sheet 1.2 login)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "phone": "{{doctorUser}}",
+    "password": "{{doctorPassword}}"
+  }
+}
+
+script:post-response {
+  const token = res.getBody().data && (res.getBody().data.access_token || res.getBody().data.token);
+  if (res.getStatus() === 200 && token) {
+    bru.setEnvVar("doctorToken", token);
+    console.log("✅ Đăng nhập Bác Sĩ thành công!");
+    console.log("🔑 Đã lưu access_token Bác Sĩ vào biến {{doctorToken}}");
+  }
+}

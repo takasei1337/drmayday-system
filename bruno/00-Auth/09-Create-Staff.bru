@@ -1,0 +1,37 @@
+meta {
+  name: 09. Admin tạo tài khoản nhân viên (Sheet 1.6 create_staff)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/auth/create_staff
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "full_name": "BS. Nguyễn Trọng Giáp",
+    "phone": "{{newStaffPhone}}",
+    "password": "Doctor@123",
+    "gender": "male",
+    "role_id": 2,
+    "branch_id": 1,
+    "department_id": 1
+  }
+}
+
+script:pre-request {
+  const randomDigits = Math.floor(1000000 + Math.random() * 9000000);
+  const phone = "09" + randomDigits;
+  bru.setEnvVar("newStaffPhone", phone);
+}

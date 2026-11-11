@@ -1,0 +1,33 @@
+meta {
+  name: 01. Đăng nhập Admin (Sheet 1.2 login)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "phone": "{{adminUser}}",
+    "password": "{{adminPassword}}"
+  }
+}
+
+script:post-response {
+  const token = res.getBody().data && (res.getBody().data.access_token || res.getBody().data.token);
+  if (res.getStatus() === 200 && token) {
+    bru.setEnvVar("adminToken", token);
+    console.log("✅ Đăng nhập Admin thành công!");
+    console.log("🔑 Đã lưu access_token Admin vào biến {{adminToken}}");
+  } else {
+    console.error("❌ Đăng nhập Admin thất bại:", res.getBody());
+  }
+}

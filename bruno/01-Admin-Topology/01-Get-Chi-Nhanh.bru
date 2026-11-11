@@ -1,0 +1,15 @@
+meta {
+  name: 01. Lấy danh sách Chi Nhánh (Admin)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/admin/chi-nhanh
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}

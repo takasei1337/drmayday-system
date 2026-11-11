@@ -1,0 +1,15 @@
+meta {
+  name: 01. Lấy danh mục vị trí tổn thương (Body map)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/lesions/vi-tri
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}

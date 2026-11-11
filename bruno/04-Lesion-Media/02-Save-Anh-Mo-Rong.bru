@@ -1,0 +1,36 @@
+meta {
+  name: 02. Lưu ảnh tổn thương mở rộng (Prisma Sub DB)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/lesions/anh-mo-rong
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "ma_ho_so": 1,
+    "ten_tep_goc": "vet_san_canh_tay.jpg",
+    "storage_path": "patients/1/lesions/vet_san_canh_tay.jpg",
+    "public_url": "https://qefrlrzvnjvvrfrnmeam.supabase.co/storage/v1/object/public/mayday-attachments/patients/1/lesions/vet_san_canh_tay.jpg",
+    "dinh_dang_tep": "image/jpeg",
+    "dung_luong_bytes": 1048576,
+    "toa_do_x": 120.5,
+    "toa_do_y": 340.2,
+    "vung_co_the": "Cánh tay trái",
+    "ghi_chu_lam_sang": "Nốt sẩn phù nề xuất hiện sau khi ăn hải sản 2 giờ",
+    "diem_ngua_nrs": 7,
+    "diem_dau_nrs": 2
+  }
+}
