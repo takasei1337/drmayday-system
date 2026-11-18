@@ -1,5 +1,5 @@
 meta {
-  name: 02. Danh sách vị trí theo đợt (GET /lesion-locations/episode/:episodeId)
+  name: 02. Danh sách vị trí theo đợt (Sheet GET /lesion-locations/episode/:episode_id)
   type: http
   seq: 2
 }
@@ -12,4 +12,18 @@ get {
 
 auth:bearer {
   token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("array");
+    if (body.data.length > 0) {
+      expect(Object.keys(body.data[0]).sort(), "data[0]").to.eql(["body_part","context_other","context_tags","created_at","episode_id","lesion_location_id","medication_name","medication_taken_ago","medication_unit","occurred_at","updated_at"]);
+    }
+  });
 }

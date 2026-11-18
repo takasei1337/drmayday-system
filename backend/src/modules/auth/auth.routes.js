@@ -21,6 +21,8 @@ router.post('/forgot-password', authController.forgotPassword);
 // 1.5 Đổi mật khẩu (Sheet 1.5 change_password)
 router.post('/change_password', authenticate, authController.changePassword);
 router.post('/change-password', authenticate, authController.changePassword);
+router.put('/change_password', authenticate, authController.changePassword);
+router.put('/change-password', authenticate, authController.changePassword);
 
 // 1.6 Admin tạo nhân viên y tế (Sheet 1.6 create_staff)
 router.post('/create_staff', authenticate, authorize(['ADMIN']), authController.createStaff);

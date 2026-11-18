@@ -1,5 +1,5 @@
 meta {
-  name: 06. Chi tiết hồ sơ bệnh án (GET /medical_records/:id)
+  name: 06. Chi tiết hồ sơ bệnh án (Sheet GET /medical_records/:id)
   type: http
   seq: 6
 }
@@ -12,4 +12,16 @@ get {
 
 auth:bearer {
   token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["assigned_doctor_id","completed_at","created_at","created_by","instructions","medical_record_id","patient_id","status","template_id","updated_at"]);
+  });
 }

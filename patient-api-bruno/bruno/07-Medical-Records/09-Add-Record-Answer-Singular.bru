@@ -1,0 +1,40 @@
+meta {
+  name: 09. Thêm câu trả lời bổ sung (Sheet POST /medical_records/:id/answer)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/medical_records/{{recordId}}/answer
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "Q_RED_FLAG",
+        "answer_text": "Không khó thở"
+      }
+    ]
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","count","message"]);
+    expect(body.code).to.equal(1000);
+  });
+}

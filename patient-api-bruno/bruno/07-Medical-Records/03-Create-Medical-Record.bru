@@ -1,5 +1,5 @@
 meta {
-  name: 03. Tạo hồ sơ bệnh án (POST /medical_records)
+  name: 03. Tạo hồ sơ bệnh án (Sheet POST /medical_records)
   type: http
   seq: 3
 }
@@ -22,14 +22,28 @@ body:json {
   {
     "patient_id": "{{patientId}}",
     "template_id": "{{templateId}}",
-    "loai_benh_an": "MAN",
-    "thoi_gian_khoi_phat_tuan": 8,
-    "ly_do_den_kham": "Mẩn ngứa nổi sẩn phù tái phát nhiều lần trên 6 tuần"
+    "answers": [
+      {
+        "question_id": "Q_ITCH_DURATION",
+        "answer_text": "Ngứa nhiều về đêm trên 6 tuần"
+      }
+    ]
   }
 }
 
 script:post-response {
   const b = res.getBody();
-  const rid = b && b.data && (b.data.ma_ho_so || b.data.medical_record_id);
-  if (rid) { bru.setEnvVar("recordId", String(rid)); console.log("📄 Đã lưu {{recordId}} =", rid); }
+  if (b && b.data && b.data.medical_record_id) bru.setEnvVar("recordId", String(b.data.medical_record_id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["assigned_doctor_id","created_at","created_by","instructions","medical_record_id","patient_id","status","template_id"]);
+  });
 }

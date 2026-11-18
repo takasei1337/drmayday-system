@@ -1,5 +1,5 @@
 meta {
-  name: 04. Xóa vị trí tổn thương (DELETE /lesion-locations/:id)
+  name: 04. Xóa vị trí tổn thương (Sheet DELETE /lesion-locations/:id)
   type: http
   seq: 4
 }
@@ -12,4 +12,15 @@ delete {
 
 auth:bearer {
   token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.eql({});
+  });
 }

@@ -1,0 +1,37 @@
+meta {
+  name: 13. Đổi trạng thái bệnh án (Sheet PATCH /medical_records/:id/status)
+  type: http
+  seq: 13
+}
+
+patch {
+  url: {{baseUrl}}/medical_records/{{recordId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "cancelled"
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["id","status"]);
+  });
+}

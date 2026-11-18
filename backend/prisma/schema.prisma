@@ -145,6 +145,11 @@ model AnhTonThuongMoRong {
   publicUrl       String   @map("public_url")
   dinhDangTep     String?  @map("dinh_dang_tep")
   dungLuongBytes  BigInt?  @map("dung_luong_bytes")
+  questionId      String?  @map("question_id")
+  mediaType       String?  @map("media_type")
+  category        String?  @map("category")
+  description     String?  @map("description")
+  tenTepGoc       String?  @map("ten_tep_goc")
   toaDoX          Float?   @map("toa_do_x")
   toaDoY          Float?   @map("toa_do_y")
   vungCoThe       String?  @map("vung_co_the")
@@ -163,13 +168,15 @@ model AnhTonThuongMoRong {
 // 6. HỖ TRỢ DỮ LIỆU PHỤ TRỢ BỆNH NHÂN (Thay runtime_store.json -> Supabase Sub DB)
 // ------------------------------------------------------------------------------
 model PatientExtraProfile {
-  maNguoi                BigInt   @id @map("ma_nguoi")
-  genderRaw              String?  @map("gender_raw") // Hỗ trợ 'other' ngoài ('Nam','Nu') của Main DB
-  yearOfBirth            Int?     @map("year_of_birth")
-  healthInsuranceValidate String? @map("health_insurance_validate")
-  medicalHistory         String?  @map("medical_history")
-  allergyHistory         String?  @map("allergy_history")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  maNguoi                 BigInt    @id @map("ma_nguoi")
+  genderRaw               String?   @map("gender_raw") // Hỗ trợ 'other' ngoài ('Nam','Nu') của Main DB
+  yearOfBirth             Int?      @map("year_of_birth")
+  workPlace               String?   @map("work_place")
+  firstVisit              DateTime? @map("first_visit")
+  healthInsuranceValidate String?   @map("health_insurance_validate")
+  medicalHistory          String?   @map("medical_history")
+  allergyHistory          String?   @map("allergy_history")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   @@map("patient_extra_profiles")
 }
@@ -214,13 +221,16 @@ model MedicalRecordMeta {
 }
 
 model MedicalRecordAnswer {
-  id          Int      @id @default(autoincrement())
-  maHoSo      BigInt   @map("ma_ho_so")
-  questionId  Int      @map("question_id")
-  answerValue String?  @map("answer_value")
-  answerJson  Json?    @map("answer_json")
-  answeredBy  BigInt?  @map("answered_by")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               Int      @id @default(autoincrement())
+  maHoSo           BigInt   @map("ma_ho_so")
+  questionId       Int      @map("question_id")
+  questionCode     String?  @map("question_code")
+  questionOptionId Int?     @map("question_option_id")
+  answerValue      String?  @map("answer_value")
+  answerJson       Json?    @map("answer_json")
+  answeredBy       BigInt?  @map("answered_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@unique([maHoSo, questionId])
   @@index([maHoSo])
@@ -232,6 +242,7 @@ model AnswerImage {
   maHoSo       BigInt   @map("ma_ho_so")
   questionId   Int      @map("question_id")
   attachmentId BigInt   @map("attachment_id")
+  optionValue  String?  @map("option_value")
   publicUrl    String?  @map("public_url")
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -258,28 +269,75 @@ model Uas7Note {
 }
 
 model LesionEpisodeMeta {
-  maDotTonThuong  BigInt    @id @map("ma_dot_ton_thuong")
-  maHoSo          BigInt    @map("ma_ho_so")
-  maBenhNhan      BigInt    @map("ma_benh_nhan")
-  hasLesions      Boolean   @default(true) @map("has_lesions")
-  triggerCategory String?   @map("trigger_category")
-  endedAt         DateTime? @map("ended_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  maDotTonThuong     BigInt    @id @map("ma_dot_ton_thuong")
+  maHoSo             BigInt    @map("ma_ho_so")
+  maBenhNhan         BigInt    @map("ma_benh_nhan")
+  hasLesions         Boolean   @default(true) @map("has_lesions")
+  triggerCategory    String?   @map("trigger_category")
+  occurredAt         DateTime? @map("occurred_at")
+  contextTags        String?   @map("context_tags")
+  contextOther       String?   @map("context_other")
+  medicationTakenAgo String?   @map("medication_taken_ago")
+  medicationUnit     String?   @map("medication_unit")
+  endedAt            DateTime? @map("ended_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([maHoSo])
   @@map("lesion_episode_meta")
 }
 
 model LesionLocationMeta {
-  maViTriTonThuong BigInt   @id @map("ma_vi_tri_ton_thuong")
-  maDotTonThuong   BigInt   @map("ma_dot_ton_thuong")
-  bodyPart         String   @map("body_part")
-  lesionType       String?  @map("lesion_type")
-  itchScoreNrs     Int?     @map("itch_score_nrs")
-  painScoreNrs     Int?     @map("pain_score_nrs")
-  notes            String?  @map("notes")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  maViTriTonThuong   BigInt    @id @map("ma_vi_tri_ton_thuong")
+  maDotTonThuong     BigInt    @map("ma_dot_ton_thuong")
+  bodyPart           String    @map("body_part")
+  lesionType         String?   @map("lesion_type")
+  occurredAt         DateTime? @map("occurred_at")
+  contextTags        String?   @map("context_tags")
+  contextOther       String?   @map("context_other")
+  medicationName     String?   @map("medication_name")
+  medicationTakenAgo String?   @map("medication_taken_ago")
+  medicationUnit     String?   @map("medication_unit")
+  itchScoreNrs       Int?      @map("itch_score_nrs")
+  painScoreNrs       Int?      @map("pain_score_nrs")
+  notes              String?   @map("notes")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([maDotTonThuong])
   @@map("lesion_location_meta")
+}
+
+model LesionPhotoMeta {
+  maAnh        BigInt   @id @map("ma_anh")
+  annotatedUrl String?  @map("annotated_url")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("lesion_photo_meta")
+}
+
+model LabRequest {
+  id          Int              @id @default(autoincrement())
+  maHoSo      BigInt           @map("ma_ho_so")
+  requestedBy BigInt           @map("requested_by")
+  status      String           @default("pending") @map("status")
+  note        String?          @map("note")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  items       LabRequestItem[]
+
+  @@index([maHoSo])
+  @@map("lab_requests")
+}
+
+model LabRequestItem {
+  id           Int        @id @default(autoincrement())
+  labRequestId Int        @map("lab_request_id")
+  testName     String     @map("test_name")
+  description  String?    @map("description")
+  resultId     Int?       @map("result_id")
+  resultValue  String?    @map("result_value")
+  concludedBy  BigInt?    @map("concluded_by")
+  resultNote   String?    @map("result_note")
+  labRequest   LabRequest @relation(fields: [labRequestId], references: [id], onDelete: Cascade)
+
+  @@index([labRequestId])
+  @@map("lab_request_items")
 }

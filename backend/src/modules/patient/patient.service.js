@@ -173,10 +173,14 @@ class PatientService {
     if (isStaffRole(user)) return pid;
 
     const myPatientId = await resolvePatientIdForUser(db, user);
-    if (!myPatientId || myPatientId !== pid) {
+    const myAccountId = user?.ma_tai_khoan ? Number(user.ma_tai_khoan) : null;
+    if (!myPatientId) {
       throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 3106, 403);
     }
-    return pid;
+    if (pid === myPatientId || (myAccountId && pid === myAccountId)) {
+      return myPatientId;
+    }
+    throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 3106, 403);
   }
 
   /**

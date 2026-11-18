@@ -19,7 +19,21 @@ const errorResponse = (res, message = 'Có lỗi xảy ra', statusCode = 500, co
   });
 };
 
+const sheetSuccess = (res, data = {}, message = 'OK', statusCode = 200, code = 1000) => {
+  return res.status(statusCode).json({
+    code: code || 1000,
+    message: message || 'OK',
+    data: data !== undefined ? data : {},
+  });
+};
+
+const sheetRawSuccess = (res, payload = {}, statusCode = 200) => {
+  return res.status(statusCode).json(payload);
+};
+
 module.exports = {
   successResponse,
   errorResponse,
+  sheetSuccess,
+  sheetRawSuccess,
 };

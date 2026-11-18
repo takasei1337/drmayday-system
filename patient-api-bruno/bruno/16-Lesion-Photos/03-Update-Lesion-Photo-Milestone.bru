@@ -1,5 +1,5 @@
 meta {
-  name: 03. Cập nhật mốc tiến triển ảnh (PATCH /lesion-photos/:id/milestone)
+  name: 03. Cập nhật mốc ảnh (Sheet PATCH /lesion-photos/:id/milestone)
   type: http
   seq: 3
 }
@@ -23,4 +23,16 @@ body:json {
     "milestone": "normal",
     "itch_score": "1"
   }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["annotated_url","attachment_id","burn_score","created_at","episode_id","hives_count","itch_score","local_auas","location_id","milestone","pain_score","photo_id","taken_at","updated_at"]);
+  });
 }

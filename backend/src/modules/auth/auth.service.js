@@ -156,15 +156,12 @@ class AuthService {
     }
 
     return {
-      id: Number(ma_tai_khoan),
-      ma_nguoi: Number(ma_nguoi),
-      ma_benh_nhan: Number(ma_benh_nhan),
+      user_id: Number(ma_tai_khoan),
       full_name: fullName,
       phone,
-      gender: genderInfo.rawValue || 'other',
-      year_of_birth: yearOfBirth || (ngaySinh ? new Date(ngaySinh).getFullYear() : null),
+      gender: genderInfo.rawValue || null,
       role_id: Number(roleId),
-      status: 1,
+      is_active: 1,
       created_at: thoi_diem_tao ? thoi_diem_tao.toISOString() : new Date().toISOString(),
     };
   }
@@ -255,20 +252,14 @@ class AuthService {
     });
 
     const userInfo = {
-      user_id: Number(user.ma_tai_khoan),
-      ma_tai_khoan: Number(user.ma_tai_khoan),
-      ma_nguoi: Number(user.ma_nguoi),
-      ma_benh_nhan: maBenhNhan,
-      display_name: formatDisplayName(user.ho_ten),
+      user_id: String(user.ma_tai_khoan),
       full_name: user.ho_ten,
       phone: user.so_dien_thoai || user.ten_dang_nhap,
-      role_id: Number(user.ma_vai_tro),
-      role_name: user.ten_vai_tro,
-      vai_tro: user.ten_vai_tro,
+      role_id: String(user.ma_vai_tro),
     };
 
     return {
-      access_token: token,
+      token,
       user_info: userInfo,
     };
   }
@@ -558,51 +549,39 @@ class AuthService {
       extra?.yearOfBirth ||
       (row.ngay_sinh ? new Date(row.ngay_sinh).getFullYear() : null);
 
+    let firstVisitIso = extra?.firstVisit ? extra.firstVisit.toISOString() : null;
+    if (!firstVisitIso && row.ma_benh_nhan) {
+      try {
+        const fvRes = await db.query(
+          'SELECT MIN(thoi_diem_kham_lan_dau) AS fv FROM public.hosobenhan WHERE ma_benh_nhan = $1',
+          [row.ma_benh_nhan]
+        );
+        if (fvRes.rows[0]?.fv) {
+          firstVisitIso = new Date(fvRes.rows[0].fv).toISOString();
+        }
+      } catch {}
+    }
+
     return {
-      // Giữ nguyên các field snake_case hiện có của drmayday-system
-      ma_tai_khoan: Number(row.ma_tai_khoan),
-      ma_nguoi: Number(row.ma_nguoi),
-      ma_benh_nhan: row.ma_benh_nhan ? Number(row.ma_benh_nhan) : null,
-      ten_dang_nhap: row.ten_dang_nhap,
-      trang_thai_hoat_dong: row.trang_thai_hoat_dong,
-      ten_vai_tro: row.ten_vai_tro,
-      ten_hien_thi: row.ten_hien_thi,
-      ho_ten: row.ho_ten,
-      ngay_sinh: row.ngay_sinh,
-      gioi_tinh: extra?.genderRaw || row.gioi_tinh,
-      so_dien_thoai: row.so_dien_thoai,
-      dia_chi_tinh_tp: row.dia_chi_tinh_tp,
-      dia_chi_xa_phuong: row.dia_chi_xa_phuong,
-      dia_chi_so_nha_thon_pho: row.dia_chi_so_nha_thon_pho,
-      nghe_nghiep: row.nghe_nghiep,
-      dan_toc: row.dan_toc,
-      bhyt_so_the: row.bhyt_so_the,
-      bhyt_gia_tri_den: row.bhyt_gia_tri_den,
-      nguoi_nha_ho_ten_dia_chi: row.nguoi_nha_ho_ten_dia_chi,
-      nguoi_nha_so_dien_thoai: row.nguoi_nha_so_dien_thoai,
-      // Các field chuẩn Slide 1 / 2
-      id: Number(row.ma_tai_khoan),
       user_id: Number(row.ma_tai_khoan),
-      patient_id: row.ma_benh_nhan ? Number(row.ma_benh_nhan) : null,
-      full_name: row.ho_ten,
+      full_name: row.ho_ten || '',
       phone: row.so_dien_thoai || row.ten_dang_nhap,
-      gender: extra?.genderRaw || row.gioi_tinh,
-      year_of_birth: birthYear,
-      date_of_birth: row.ngay_sinh,
-      address: row.dia_chi_tinh_tp,
-      tinh_tp: row.dia_chi_tinh_tp,
-      xa_phuong: row.dia_chi_xa_phuong,
-      so_nha_thon_pho: row.dia_chi_so_nha_thon_pho,
-      career: row.nghe_nghiep,
-      ethnicity: row.dan_toc,
-      health_insurance_number: row.bhyt_so_the,
-      health_insurance_validate: extra?.healthInsuranceValidate || row.bhyt_gia_tri_den || null,
-      medical_history: extra?.medicalHistory || null,
-      allergy_history: extra?.allergyHistory || null,
-      next_of_kin_name: row.nguoi_nha_ho_ten_dia_chi,
-      next_of_kin_phone: row.nguoi_nha_so_dien_thoai,
       role_id: Number(row.ma_vai_tro),
-      role: row.ten_vai_tro,
+      gender: extra?.genderRaw || row.gioi_tinh || null,
+      year_of_birth: birthYear,
+      career: row.nghe_nghiep || null,
+      ethnic: row.dan_toc || null,
+      hamlet_address: row.dia_chi_so_nha_thon_pho || null,
+      commune_address: row.dia_chi_xa_phuong || null,
+      city_address: row.dia_chi_tinh_tp || null,
+      work_place: extra?.workPlace || null,
+      health_insurance_number: row.bhyt_so_the || null,
+      health_insurance_validate:
+        extra?.healthInsuranceValidate ||
+        (row.bhyt_gia_tri_den ? new Date(row.bhyt_gia_tri_den).toISOString().slice(0, 10) : null),
+      next_of_kin_name: row.nguoi_nha_ho_ten_dia_chi || null,
+      next_of_kin_phone: row.nguoi_nha_so_dien_thoai || null,
+      first_visit: firstVisitIso,
     };
   }
 
@@ -803,6 +782,10 @@ class AuthService {
     const extraUpdate = {};
     if (genderInfo.provided) extraUpdate.genderRaw = genderInfo.rawValue || null;
     if (yearOfBirth !== undefined) extraUpdate.yearOfBirth = yearOfBirth;
+    if (data.work_place !== undefined) extraUpdate.workPlace = data.work_place;
+    if (data.first_visit !== undefined) {
+      extraUpdate.firstVisit = data.first_visit ? new Date(data.first_visit) : null;
+    }
     if (data.health_insurance_validate !== undefined) {
       extraUpdate.healthInsuranceValidate = data.health_insurance_validate;
     }

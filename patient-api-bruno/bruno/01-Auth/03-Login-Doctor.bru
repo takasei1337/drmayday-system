@@ -1,5 +1,5 @@
 meta {
-  name: 03. Đăng nhập Bác sĩ (POST /auth/login)
+  name: 03. Đăng nhập Bác sĩ (Sheet 1.2 POST /auth/login)
   type: http
   seq: 3
 }
@@ -28,9 +28,19 @@ script:pre-request {
 
 script:post-response {
   const b = res.getBody();
-  const token = b && b.data && (b.data.access_token || b.data.token);
-  if (res.getStatus() === 200 && token) {
-    bru.setEnvVar("doctorToken", token);
-    console.log("✅ Đã lưu {{doctorToken}}");
-  }
+  if (res.getStatus() === 200 && b && b.data && b.data.token) bru.setEnvVar("doctorToken", b.data.token);
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["token","user_info"]);
+    expect(body.data.user_info).to.be.an("object");
+    expect(Object.keys(body.data.user_info).sort(), "user_info").to.eql(["full_name","phone","role_id","user_id"]);
+  });
 }

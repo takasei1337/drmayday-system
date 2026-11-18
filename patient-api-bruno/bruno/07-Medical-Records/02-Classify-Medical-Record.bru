@@ -1,5 +1,5 @@
 meta {
-  name: 02. Phân loại bệnh án Cấp/Mạn (POST /medical_records/classify)
+  name: 02. Phân loại bệnh án (Sheet POST /medical_records/classify)
   type: http
   seq: 2
 }
@@ -27,4 +27,16 @@ body:json {
       }
     ]
   }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["template_id","template_name"]);
+  });
 }

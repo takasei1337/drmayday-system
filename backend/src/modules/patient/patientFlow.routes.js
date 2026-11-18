@@ -30,6 +30,16 @@ const uploadSingleMiddleware = (req, res, next) => {
   });
 };
 
+const uploadMultipleMiddleware = (req, res, next) => {
+  upload.array('images', 10)(req, res, (err) => {
+    if (err) {
+      const code = err.code === 'LIMIT_UNEXPECTED_FILE' ? 6004 : err.code || 2003;
+      return errorResponse(res, err.message, err.statusCode || 400, code);
+    }
+    return next();
+  });
+};
+
 /**
  * Gắn tất cả các tuyến đường chuẩn theo 11 Slide & API Master Spec cho Backend Bệnh nhân
  */
@@ -62,6 +72,7 @@ function mountPatientFlowRoutes(app) {
   // 4. Templates động trên Sub DB (/api/v1/templates)
   const templateRouter = express.Router();
   templateRouter.use(authenticate);
+  templateRouter.get('/all', flowController.listTemplates);
   templateRouter.get('/', flowController.listTemplates);
   templateRouter.get('/:id', flowController.getTemplate);
   app.use('/api/v1/templates', templateRouter);
@@ -71,17 +82,20 @@ function mountPatientFlowRoutes(app) {
   medRecRouter.use(authenticate);
   medRecRouter.get('/classify-questions', flowController.getClassifyQuestions);
   medRecRouter.post('/classify', flowController.classifyRecord);
+  medRecRouter.get('/all', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listRecords);
   medRecRouter.get('/patients/:patientId/history', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getPatientRecordHistory);
   medRecRouter.post('/', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.createRecord);
   medRecRouter.get('/', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listRecords);
   medRecRouter.get('/:id/summary', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getRecordSummary);
   medRecRouter.get('/:id/history', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getRecordHistory);
   medRecRouter.get('/:id/answers', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getAnswers);
+  medRecRouter.post('/:id/answer', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.addAnswerSingular);
   medRecRouter.post('/:id/answers', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.upsertAnswers);
   medRecRouter.put('/:id/answers', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.upsertAnswers);
   medRecRouter.post('/:id/close', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.closeRecord);
   medRecRouter.post('/:id/accept', authorize(['BAC_SI', 'ADMIN']), flowController.acceptRecord);
   medRecRouter.post('/:id/complete', authorize(['BAC_SI', 'ADMIN']), flowController.completeRecord);
+  medRecRouter.patch('/:id/status', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.updateRecordStatus);
   medRecRouter.get('/:id/sessions', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getRecordSessions);
   medRecRouter.post('/:id/sessions', authorize(['BAC_SI', 'ADMIN']), flowController.createRecordSession);
   medRecRouter.get('/:id/lab-results', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getLabResults);
@@ -94,6 +108,11 @@ function mountPatientFlowRoutes(app) {
   app.use('/api/v1/medical-records', medRecRouter);
 
   // 6. Cận lâm sàng & Đơn thuốc (medrec12, medrec13)
+  const labReqRouter = express.Router();
+  labReqRouter.use(authenticate);
+  labReqRouter.post('/', authorize(['BAC_SI', 'ADMIN']), flowController.createLabRequest);
+  app.use('/api/v1/lab-requests', labReqRouter);
+
   const labRouter = express.Router();
   labRouter.use(authenticate);
   labRouter.post('/', authorize(['BAC_SI', 'ADMIN']), flowController.createLabResult);
@@ -116,6 +135,7 @@ function mountPatientFlowRoutes(app) {
   uas7Router.post('/', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.logUas7);
   uas7Router.get('/eligibility', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.checkUas7Eligibility);
   uas7Router.get('/summary', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getUas7);
+  uas7Router.get('/week/:patientId', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getUas7Week);
   uas7Router.get('/patient/:patientId', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getUas7);
   uas7Router.get('/', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getUas7);
   app.use('/api/v1/uas7-scores', uas7Router);
@@ -131,6 +151,7 @@ function mountPatientFlowRoutes(app) {
   epRouter.use(authenticate);
   epRouter.post('/', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.createEpisode);
   epRouter.get('/my', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listEpisodes);
+  epRouter.get('/record/:medicalRecordId', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listEpisodesByRecord);
   epRouter.get('/', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listEpisodes);
   epRouter.get('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getEpisodeById);
   epRouter.patch('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.updateEpisode);
@@ -148,9 +169,11 @@ function mountPatientFlowRoutes(app) {
   locRouter.delete('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.deleteLocation);
   app.use('/api/v1/lesion-locations', locRouter);
 
+  app.get('/api/v1/image-attachments/view/:id', flowController.viewAttachmentBinary);
   const attachRouter = express.Router();
   attachRouter.use(authenticate);
   attachRouter.post('/upload', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), uploadSingleMiddleware, flowController.uploadAttachment);
+  attachRouter.post('/upload-multiple', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), uploadMultipleMiddleware, flowController.uploadMultipleAttachments);
   attachRouter.get('/user/:userId', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listAttachments);
   attachRouter.get('/', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listAttachments);
   attachRouter.delete('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.deleteAttachment);
@@ -167,6 +190,7 @@ function mountPatientFlowRoutes(app) {
 
   const ansImgRouter = express.Router();
   ansImgRouter.use(authenticate);
+  ansImgRouter.post('/bulk', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.attachAnswerImagesBulk);
   ansImgRouter.post('/', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.attachAnswerImage);
   ansImgRouter.get('/', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listAnswerImages);
   ansImgRouter.get('/:answerId', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.listAnswerImages);

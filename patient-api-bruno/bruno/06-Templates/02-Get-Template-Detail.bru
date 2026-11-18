@@ -1,5 +1,5 @@
 meta {
-  name: 02. Chi tiết biểu mẫu 4 tầng (GET /templates/:id)
+  name: 02. Chi tiết biểu mẫu 4 tầng (Sheet GET /templates/:id)
   type: http
   seq: 2
 }
@@ -12,4 +12,28 @@ get {
 
 auth:bearer {
   token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["code_template","name","sections"]);
+    expect(body.data.sections).to.be.an("array");
+    if (body.data.sections.length > 0) {
+      const s = body.data.sections[0];
+      expect(Object.keys(s).sort(), "sections[0]").to.eql(["questions","section_id","title"]);
+      if (s.questions.length > 0) {
+        const q = s.questions[0];
+        expect(Object.keys(q).sort(), "questions[0]").to.eql(["options","question_id","question_text","type_question"]);
+        if (q.options.length > 0) {
+          expect(Object.keys(q.options[0]).sort(), "options[0]").to.eql(["id","option_text","option_value"]);
+        }
+      }
+    }
+  });
 }

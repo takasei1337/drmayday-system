@@ -1,5 +1,5 @@
 meta {
-  name: 01. Kiểm tra điều kiện chấm UAS7 (GET /uas7-scores/eligibility)
+  name: 01. Kiểm tra điều kiện UAS7 (Sheet GET /uas7-scores/eligibility)
   type: http
   seq: 1
 }
@@ -12,4 +12,16 @@ get {
 
 auth:bearer {
   token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["eligible","medical_record_id"]);
+  });
 }

@@ -153,11 +153,11 @@ class PatientFlowService {
       {
         question_id: 'Q_DURATION_WEEKS',
         question_text: 'Triệu chứng mày đay kéo dài bao lâu?',
-        question_type: 'RADIO',
+        type_question: 'radio',
         options: [
-          { value: 'LT_6_WEEKS', label: 'Dưới 6 tuần (Mày đay cấp tính)' },
-          { value: 'GE_6_WEEKS', label: 'Từ 6 tuần trở lên (Mày đay mạn tính)' },
-          { value: 'FOLLOWUP', label: 'Tái khám theo hẹn' },
+          { id: 1, option_text: 'Dưới 6 tuần (Mày đay cấp tính)', option_value: 'LT_6_WEEKS' },
+          { id: 2, option_text: 'Từ 6 tuần trở lên (Mày đay mạn tính)', option_value: 'GE_6_WEEKS' },
+          { id: 3, option_text: 'Tái khám theo hẹn', option_value: 'FOLLOWUP' },
         ],
       },
     ];
@@ -184,32 +184,29 @@ class PatientFlowService {
     }
 
     let code = 'TMPL_URTICARIA_ACUTE';
-    let subtype = 'URTICARIA_ACUTE';
-    let loaiBenhAn = 'CAP';
-    let label = 'Mày đay cấp tính (< 6 tuần)';
+    let label = 'Mẫu bệnh án Mày đay Cấp tính';
 
     if (isFollowup) {
       code = 'TMPL_URTICARIA_FOLLOWUP';
-      subtype = 'URTICARIA_FOLLOWUP';
-      loaiBenhAn = 'MAN';
-      label = 'Phiếu tái khám mày đay';
+      label = 'Mẫu phiếu Tái khám Mày đay';
     } else if (weeks >= 6) {
       code = 'TMPL_URTICARIA_CHRONIC_INIT';
-      subtype = 'URTICARIA_CHRONIC_INIT';
-      loaiBenhAn = 'MAN';
-      label = 'Mày đay mạn tính - Khám lần đầu (>= 6 tuần)';
+      label = 'Mẫu bệnh án Mày đay Mạn tính - Khám lần đầu';
     }
 
     const template = await templateSeed.getTemplateByIdOrCode(code);
     return {
-      loai_benh_an: loaiBenhAn,
-      record_subtype: subtype,
-      duration_weeks: weeks,
-      template_id: template?.id || (loaiBenhAn === 'CAP' ? 1 : isFollowup ? 3 : 2),
-      code_template: code,
-      label,
-      template,
+      template_id: template?.codeTemplate || code,
+      template_name: template?.title || label,
     };
+  }
+
+  async _resolveTemplateCode(row, meta) {
+    if (meta?.templateId) {
+      const t = await prisma.template.findUnique({ where: { id: meta.templateId }, select: { codeTemplate: true } }).catch(() => null);
+      if (t?.codeTemplate) return t.codeTemplate;
+    }
+    return row.loai_benh_an === 'CAP' ? 'TMPL_URTICARIA_ACUTE' : 'TMPL_URTICARIA_CHRONIC_INIT';
   }
 
   async _getRecordOrThrow(recordId, user = null) {
@@ -246,19 +243,62 @@ class PatientFlowService {
     await patientService.assertPatientAccess(user, pid);
 
     const payload = { ...data, ma_benh_nhan: pid };
-    if (!payload.loai_benh_an && (payload.duration_weeks !== undefined || payload.type || payload.record_subtype)) {
+    if (payload.template_id) {
+      const tmpl = await templateSeed.getTemplateByIdOrCode(payload.template_id);
+      if (tmpl) {
+        payload.template_id = tmpl.id;
+        if (!payload.loai_benh_an) {
+          payload.loai_benh_an = tmpl.codeTemplate.includes('ACUTE') ? 'CAP' : 'MAN';
+        }
+        if (!payload.record_subtype) {
+          payload.record_subtype = tmpl.codeTemplate.replace(/^TMPL_/, '');
+        }
+      }
+    } else if (!payload.loai_benh_an && (payload.duration_weeks !== undefined || payload.type || payload.record_subtype)) {
       const classified = await this.classifyMedicalRecord(payload);
-      payload.loai_benh_an = classified.loai_benh_an;
-      payload.record_subtype = payload.record_subtype || classified.record_subtype;
-      payload.template_id = payload.template_id || classified.template_id;
+      const tmpl = await templateSeed.getTemplateByIdOrCode(classified.template_id);
+      payload.loai_benh_an = classified.template_id.includes('ACUTE') ? 'CAP' : 'MAN';
+      payload.record_subtype = classified.template_id.replace(/^TMPL_/, '');
+      payload.template_id = tmpl?.id || (payload.loai_benh_an === 'CAP' ? 1 : 2);
     }
 
     const created = await patientService.createHoSoBenhAn(payload, user);
+    const rid = Number(created.ma_ho_so);
+
+    await prisma.medicalRecordMeta.upsert({
+      where: { maHoSo: BigInt(rid) },
+      create: {
+        maHoSo: BigInt(rid),
+        maBenhNhan: BigInt(pid),
+        templateId: typeof payload.template_id === 'number' ? payload.template_id : null,
+        recordSubtype: payload.record_subtype || null,
+        createdBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null,
+      },
+      update: {
+        templateId: typeof payload.template_id === 'number' ? payload.template_id : undefined,
+        createdBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : undefined,
+      },
+    }).catch(() => null);
 
     if (Array.isArray(data.answers) && data.answers.length > 0) {
-      await this.upsertRecordAnswers(user, created.ma_ho_so, data.answers, false);
+      await this.upsertRecordAnswers(user, rid, data.answers, false);
     }
-    return this.getMedicalRecordDetail(user, created.ma_ho_so);
+
+    const row = await this._getRecordOrThrow(rid, user);
+    const meta = await prisma.medicalRecordMeta.findUnique({ where: { maHoSo: BigInt(rid) } }).catch(() => null);
+    const templateCode = await this._resolveTemplateCode(row, meta);
+    const createdAt = row.thoi_diem_kham_lan_dau ? new Date(row.thoi_diem_kham_lan_dau).toISOString() : new Date().toISOString();
+
+    return {
+      medical_record_id: rid,
+      patient_id: Number(row.ma_benh_nhan),
+      assigned_doctor_id: meta?.assignedDoctorId ? Number(meta.assignedDoctorId) : null,
+      created_by: meta?.createdBy ? Number(meta.createdBy) : user?.ma_tai_khoan ? Number(user.ma_tai_khoan) : Number(row.ma_benh_nhan),
+      template_id: templateCode,
+      status: row.trang_thai,
+      instructions: meta?.doctorConclusion || null,
+      created_at: createdAt,
+    };
   }
 
   async listMedicalRecords(user, queryParams = {}) {
@@ -285,17 +325,17 @@ class PatientFlowService {
     }
 
     const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const page = Math.max(1, parseInt(queryParams.page || 1, 10) || 1);
     const limit = Math.min(Math.max(parseInt(queryParams.limit, 10) || 50, 1), 200);
-    params.push(limit);
+    const offset = (page - 1) * limit;
+    params.push(limit, offset);
 
     const res = await db.query(
-      `SELECT hs.*, ng.ho_ten, ng.so_dien_thoai,
-              (SELECT COUNT(*)::INT FROM public.phienkham pk WHERE pk.ma_ho_so = hs.ma_ho_so) AS so_phien_kham
+      `SELECT hs.*
        FROM public.hosobenhan hs
-       JOIN public.nguoi ng ON hs.ma_benh_nhan = ng.ma_nguoi
        ${whereSql}
        ORDER BY hs.ma_ho_so DESC
-       LIMIT $${params.length}`,
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
 
@@ -310,18 +350,19 @@ class PatientFlowService {
       } catch {}
     }
 
+    const templates = await prisma.template.findMany({ select: { id: true, codeTemplate: true } }).catch(() => []);
+    const tmplMap = new Map(templates.map((t) => [t.id, t.codeTemplate]));
+
     return res.rows.map((r) => {
       const m = metaMap.get(Number(r.ma_ho_so));
+      const tCode = (m?.templateId && tmplMap.get(m.templateId)) || (r.loai_benh_an === 'CAP' ? 'TMPL_URTICARIA_ACUTE' : 'TMPL_URTICARIA_CHRONIC_INIT');
       return {
-        ...r,
-        ma_ho_so: Number(r.ma_ho_so),
-        ma_benh_nhan: Number(r.ma_benh_nhan),
-        id: Number(r.ma_ho_so),
-        thoi_gian_khoi_phat_tuan: r.thoi_gian_khoi_phat_tuan !== null ? Number(r.thoi_gian_khoi_phat_tuan) : null,
-        template_id: m?.templateId || (r.loai_benh_an === 'CAP' ? 1 : 2),
-        record_subtype: m?.recordSubtype || (r.loai_benh_an === 'CAP' ? 'URTICARIA_ACUTE' : 'URTICARIA_CHRONIC_INIT'),
-        ly_do_den_kham: m?.lyDoDenKham || null,
-        trieu_chung_chinh: m?.trieuChungChinh || null,
+        medical_record_id: Number(r.ma_ho_so),
+        patient_id: Number(r.ma_benh_nhan),
+        assigned_doctor_id: m?.assignedDoctorId ? Number(m.assignedDoctorId) : null,
+        template_id: tCode,
+        status: r.trang_thai,
+        created_at: r.thoi_diem_kham_lan_dau ? new Date(r.thoi_diem_kham_lan_dau).toISOString() : null,
       };
     });
   }
@@ -329,52 +370,21 @@ class PatientFlowService {
   async getMedicalRecordDetail(user, recordId) {
     const row = await this._getRecordOrThrow(recordId, user);
     const rid = Number(row.ma_ho_so);
-
-    const subtypeTable = row.loai_benh_an === 'CAP' ? 'public.benhanmaydaycap' : 'public.benhanmaydayman';
-    const [subtypeRes, sessions, meta, answers, answerImages] = await Promise.all([
-      db.query(`SELECT * FROM ${subtypeTable} WHERE ma_ho_so = $1 LIMIT 1`, [rid]),
-      patientService.getPhienKhamList(rid),
-      prisma.medicalRecordMeta.findUnique({ where: { maHoSo: BigInt(rid) } }).catch(() => null),
-      prisma.medicalRecordAnswer.findMany({ where: { maHoSo: BigInt(rid) }, orderBy: { questionId: 'asc' } }).catch(() => []),
-      prisma.answerImage.findMany({ where: { maHoSo: BigInt(rid) } }).catch(() => []),
-    ]);
-
-    const template = await templateSeed.getTemplateByIdOrCode(
-      meta?.templateId || (row.loai_benh_an === 'CAP' ? 1 : 2)
-    );
+    const meta = await prisma.medicalRecordMeta.findUnique({ where: { maHoSo: BigInt(rid) } }).catch(() => null);
+    const templateCode = await this._resolveTemplateCode(row, meta);
+    const createdAt = row.thoi_diem_kham_lan_dau ? new Date(row.thoi_diem_kham_lan_dau).toISOString() : new Date().toISOString();
 
     return {
-      ...row,
-      ma_ho_so: rid,
-      ma_benh_nhan: Number(row.ma_benh_nhan),
-      id: rid,
-      thoi_gian_khoi_phat_tuan: row.thoi_gian_khoi_phat_tuan !== null ? Number(row.thoi_gian_khoi_phat_tuan) : null,
-      subtype_detail: subtypeRes.rows[0] || null,
-      template_id: meta?.templateId || template?.id || null,
-      record_subtype: meta?.recordSubtype || (row.loai_benh_an === 'CAP' ? 'URTICARIA_ACUTE' : 'URTICARIA_CHRONIC_INIT'),
-      ly_do_den_kham: meta?.lyDoDenKham || null,
-      trieu_chung_chinh: meta?.trieuChungChinh || null,
-      doctor_conclusion: meta?.doctorConclusion || null,
-      doctor_notes: meta?.doctorNotes || null,
-      locked_at: meta?.lockedAt || null,
-      closed_at: meta?.closedAt || null,
-      accepted_at: meta?.acceptedAt || null,
-      completed_at: meta?.completedAt || null,
-      sessions,
-      answers: answers.map((a) => ({
-        id: a.id,
-        question_id: a.questionId,
-        answer_value: a.answerValue,
-        answer_json: a.answerJson,
-        updated_at: a.updatedAt,
-      })),
-      answer_images: answerImages.map((img) => ({
-        id: img.id,
-        question_id: img.questionId,
-        attachment_id: Number(img.attachmentId),
-        public_url: img.publicUrl,
-      })),
-      template,
+      medical_record_id: rid,
+      patient_id: Number(row.ma_benh_nhan),
+      assigned_doctor_id: meta?.assignedDoctorId ? Number(meta.assignedDoctorId) : null,
+      created_by: meta?.createdBy ? Number(meta.createdBy) : Number(row.ma_benh_nhan),
+      template_id: templateCode,
+      status: row.trang_thai,
+      instructions: meta?.doctorConclusion || row.chan_doan_ban_dau_phong_kham || null,
+      completed_at: meta?.completedAt ? meta.completedAt.toISOString() : null,
+      created_at: createdAt,
+      updated_at: meta?.updatedAt ? meta.updatedAt.toISOString() : createdAt,
     };
   }
 
@@ -417,8 +427,9 @@ class PatientFlowService {
     if (data.da_dieu_tri_truoc_kham !== undefined) {
       pushField('da_dieu_tri_truoc_kham', Boolean(data.da_dieu_tri_truoc_kham));
     }
-    if (isStaffRole(user) && ['draft', 'pending', 'in_progress', 'completed', 'cancelled'].includes(data.trang_thai)) {
-      pushField('trang_thai', data.trang_thai);
+    const targetStatus = data.status !== undefined ? data.status : data.trang_thai;
+    if (isStaffRole(user) && ['draft', 'pending', 'in_progress', 'completed', 'cancelled'].includes(targetStatus)) {
+      pushField('trang_thai', targetStatus);
     }
 
     if (sets.length > 0) {
@@ -431,8 +442,14 @@ class PatientFlowService {
     if (data.trieu_chung_chinh !== undefined) metaData.trieuChungChinh = data.trieu_chung_chinh;
     if (data.thoi_gian_khoi_phat !== undefined) metaData.thoiGianKhoiPhat = data.thoi_gian_khoi_phat;
     if (isStaffRole(user)) {
-      if (data.doctor_conclusion !== undefined) metaData.doctorConclusion = data.doctor_conclusion;
+      const instructionsVal = data.instructions !== undefined ? data.instructions : data.doctor_conclusion;
+      if (instructionsVal !== undefined) metaData.doctorConclusion = instructionsVal;
       if (data.doctor_notes !== undefined) metaData.doctorNotes = data.doctor_notes;
+      if (targetStatus === 'completed') {
+        metaData.completedAt = new Date();
+        metaData.completedBy = user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null;
+        metaData.lockedAt = new Date();
+      }
     }
 
     if (Object.keys(metaData).length > 0) {
@@ -451,7 +468,35 @@ class PatientFlowService {
       await this.upsertRecordAnswers(user, rid, data.answers, false);
     }
 
-    return this.getMedicalRecordDetail(user, rid);
+    const updatedDetail = await this.getMedicalRecordDetail(user, rid);
+    return {
+      medical_record_id: updatedDetail.medical_record_id,
+      patient_id: updatedDetail.patient_id,
+      assigned_doctor_id: updatedDetail.assigned_doctor_id,
+      created_by: updatedDetail.created_by,
+      template_id: updatedDetail.template_id,
+      status: updatedDetail.status,
+      instructions: updatedDetail.instructions,
+      completed_at: updatedDetail.completed_at,
+      updated_at: updatedDetail.updated_at,
+    };
+  }
+
+  async updateMedicalRecordStatus(user, recordId, data = {}) {
+    const row = await this._getRecordOrThrow(recordId, user);
+    const rid = Number(row.ma_ho_so);
+    const newStatus = String(data.status || data.trang_thai || '').trim();
+    if (!['draft', 'pending', 'in_progress', 'completed', 'cancelled'].includes(newStatus)) {
+      throw createAppError('Trạng thái bệnh án không hợp lệ', 4009, 400);
+    }
+    if (!isStaffRole(user) && newStatus !== 'cancelled' && newStatus !== 'pending') {
+      throw createAppError('Không có quyền chuyển sang trạng thái này', 3101, 403);
+    }
+    await db.query('UPDATE public.hosobenhan SET trang_thai = $1 WHERE ma_ho_so = $2', [newStatus, rid]);
+    return {
+      id: rid,
+      status: newStatus,
+    };
   }
 
   async _resolveNumericQuestionId(rawQuestionId) {
@@ -483,16 +528,17 @@ class PatientFlowService {
       where: { maHoSo: BigInt(rid) },
       orderBy: { questionId: 'asc' },
     });
-    return {
-      ma_ho_so: rid,
-      answers: answers.map((a) => ({
-        id: a.id,
-        question_id: a.questionId,
-        answer_value: a.answerValue,
-        answer_json: a.answerJson,
-        updated_at: a.updatedAt,
-      })),
-    };
+    return answers.map((a) => ({
+      id: a.id,
+      medical_record_id: Number(a.maHoSo),
+      question_id: a.questionCode || String(a.questionId),
+      question_option_id: a.questionOptionId ?? null,
+      answer_text: a.answerValue ?? null,
+      answer_value: a.answerJson ?? null,
+      answered_by: a.answeredBy ? Number(a.answeredBy) : null,
+      created_at: a.createdAt ? a.createdAt.toISOString() : (a.updatedAt ? a.updatedAt.toISOString() : null),
+      updated_at: a.updatedAt ? a.updatedAt.toISOString() : null,
+    }));
   }
 
   async upsertRecordAnswers(user, recordId, rawAnswers, checkLock = true) {
@@ -514,77 +560,104 @@ class PatientFlowService {
       }));
     }
 
-    const saved = [];
+    if (list.length === 0) {
+      throw createAppError('Danh sách câu trả lời rỗng', 4007, 400);
+    }
+
+    let count = 0;
     for (const item of list) {
       const rawQid = item.question_id || item.questionId;
       const qid = await this._resolveNumericQuestionId(rawQid);
       if (!qid || qid <= 0) continue;
 
-      const rawVal =
-        item.answer_value ??
-        item.answer_text ??
-        item.option_value ??
-        item.value ??
-        item.answer;
-      const isObjOrArr = rawVal !== null && typeof rawVal === 'object';
-      const answerValue = isObjOrArr ? JSON.stringify(rawVal) : rawVal !== undefined && rawVal !== null ? String(rawVal) : null;
-      const answerJson =
-        item.answer_json !== undefined
-          ? item.answer_json
-          : isObjOrArr
-          ? rawVal
-          : typeof rawQid === 'string' && !/^\d+$/.test(rawQid)
-          ? { question_code: rawQid, value: rawVal }
+      const questionCode = rawQid !== undefined && rawQid !== null ? String(rawQid) : String(qid);
+      const rawOptionId = item.question_option_id ?? item.option_id;
+      const questionOptionId =
+        rawOptionId !== undefined && rawOptionId !== null && !Number.isNaN(parseInt(rawOptionId, 10))
+          ? parseInt(rawOptionId, 10)
           : null;
 
-      const upserted = await prisma.medicalRecordAnswer.upsert({
+      const answerTextRaw =
+        item.answer_text !== undefined
+          ? item.answer_text
+          : item.option_value !== undefined
+          ? item.option_value
+          : item.answer_value !== undefined && typeof item.answer_value !== 'object'
+          ? item.answer_value
+          : item.value !== undefined && typeof item.value !== 'object'
+          ? item.value
+          : item.answer;
+      const answerValue =
+        answerTextRaw !== undefined && answerTextRaw !== null ? String(answerTextRaw) : null;
+
+      const answerJson =
+        item.answer_value !== undefined && typeof item.answer_value === 'object'
+          ? item.answer_value
+          : item.answer_json !== undefined
+          ? item.answer_json
+          : item.option_value !== undefined
+          ? { value: item.option_value }
+          : undefined;
+
+      await prisma.medicalRecordAnswer.upsert({
         where: { maHoSo_questionId: { maHoSo: BigInt(rid), questionId: qid } },
         create: {
           maHoSo: BigInt(rid),
           questionId: qid,
+          questionCode,
+          questionOptionId,
           answerValue,
-          answerJson: answerJson ?? undefined,
+          answerJson,
           answeredBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null,
         },
         update: {
+          questionCode,
+          questionOptionId,
           answerValue,
-          answerJson: answerJson ?? undefined,
+          answerJson,
           answeredBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null,
         },
       });
-      saved.push({
-        id: upserted.id,
-        question_id: upserted.questionId,
-        answer_value: upserted.answerValue,
-        answer_json: upserted.answerJson,
-      });
+      count += 1;
     }
 
-    return {
-      ma_ho_so: rid,
-      saved_count: saved.length,
-      answers: saved,
-    };
+    return { count };
   }
 
   async getMedicalRecordSummary(user, recordId) {
-    const detail = await this.getMedicalRecordDetail(user, recordId);
-    const [patient, labs, prescriptions, episodes, uasRes] = await Promise.all([
-      patientService.getBenhNhanById(detail.ma_benh_nhan, false),
-      this.getLabResultsByRecord(user, detail.ma_ho_so),
-      this.getPrescriptionsByRecord(user, detail.ma_ho_so),
-      this.getLesionEpisodes(user, { medical_record_id: detail.ma_ho_so }),
-      this.getUas7Scores(user, { patient_id: detail.ma_benh_nhan }),
-    ]);
-
+    const row = await this._getRecordOrThrow(recordId, user);
     return {
-      record: detail,
-      patient,
-      lab_results: labs,
-      prescriptions,
-      lesion_episodes: episodes,
-      uas7_summary: uasRes.summary,
+      medical_record_id: Number(row.ma_ho_so),
+      status: row.trang_thai,
+      patient_name: row.ho_ten || '',
+      created_at: row.thoi_diem_kham_lan_dau ? new Date(row.thoi_diem_kham_lan_dau).toISOString() : null,
     };
+  }
+
+  async getPatientMedicalHistory(user, patientId) {
+    const pid = await patientService.assertPatientAccess(user, patientId);
+    const res = await db.query(
+      `SELECT hs.ma_ho_so, hs.trang_thai, hs.chan_doan_ban_dau_phong_kham, hs.thoi_diem_kham_lan_dau
+       FROM public.hosobenhan hs
+       WHERE hs.ma_benh_nhan = $1
+       ORDER BY hs.ma_ho_so DESC`,
+      [pid]
+    );
+    const ids = res.rows.map((r) => BigInt(r.ma_ho_so));
+    const metas = ids.length
+      ? await prisma.medicalRecordMeta.findMany({ where: { maHoSo: { in: ids } } }).catch(() => [])
+      : [];
+    const metaMap = new Map(metas.map((m) => [Number(m.maHoSo), m]));
+
+    return res.rows.map((r) => {
+      const m = metaMap.get(Number(r.ma_ho_so));
+      return {
+        medical_record_id: Number(r.ma_ho_so),
+        status: r.trang_thai,
+        instructions: m?.doctorConclusion || r.chan_doan_ban_dau_phong_kham || null,
+        created_at: r.thoi_diem_kham_lan_dau ? new Date(r.thoi_diem_kham_lan_dau).toISOString() : null,
+      };
+    });
   }
 
   async getMedicalRecordHistory(user, recordId) {
@@ -660,11 +733,11 @@ class PatientFlowService {
     await db.query(`UPDATE public.hosobenhan SET trang_thai = 'in_progress' WHERE ma_ho_so = $1`, [rid]);
 
     const existingSessions = await patientService.getPhienKhamList(rid);
-    let session = existingSessions[0] || null;
-    if (!session) {
-      session = await patientService.createPhienKham(rid, data, user);
+    if (existingSessions.length === 0) {
+      await patientService.createPhienKham(rid, data, user);
     }
 
+    const doctorId = user?.ma_nguoi ? Number(user.ma_nguoi) : Number(user.ma_tai_khoan);
     await prisma.medicalRecordMeta.upsert({
       where: { maHoSo: BigInt(rid) },
       create: {
@@ -672,17 +745,20 @@ class PatientFlowService {
         maBenhNhan: BigInt(row.ma_benh_nhan),
         acceptedAt: new Date(),
         acceptedBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null,
-        assignedDoctorId: user?.ma_nguoi ? BigInt(user.ma_nguoi) : null,
+        assignedDoctorId: doctorId ? BigInt(doctorId) : null,
       },
       update: {
         acceptedAt: new Date(),
         acceptedBy: user?.ma_tai_khoan ? BigInt(user.ma_tai_khoan) : null,
-        assignedDoctorId: user?.ma_nguoi ? BigInt(user.ma_nguoi) : null,
+        assignedDoctorId: doctorId ? BigInt(doctorId) : null,
       },
     });
 
-    const detail = await this.getMedicalRecordDetail(user, rid);
-    return { ...detail, active_session: session };
+    return {
+      medical_record_id: rid,
+      assigned_doctor_id: doctorId,
+      status: 'in_progress',
+    };
   }
 
   async completeMedicalRecord(user, recordId, data = {}) {
@@ -800,9 +876,10 @@ class PatientFlowService {
       prisma.answerImage.deleteMany({ where: { maHoSo: BigInt(rid) } }),
       prisma.lesionEpisodeMeta.deleteMany({ where: { maHoSo: BigInt(rid) } }),
       prisma.anhTonThuongMoRong.deleteMany({ where: { maHoSo: BigInt(rid) } }),
+      prisma.labRequest.deleteMany({ where: { maHoSo: BigInt(rid) } }),
     ]);
 
-    return { ma_ho_so: rid, deleted: true };
+    return {};
   }
 
   // ============================================================================
@@ -901,26 +978,110 @@ class PatientFlowService {
     };
   }
 
+  async createLabRequest(user, data = {}) {
+    const rid = parseInt(data.medical_record_id || data.ma_ho_so, 10);
+    const hs = await this._getRecordOrThrow(rid, user);
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (items.length === 0) {
+      throw createAppError('Phải chọn ít nhất 1 xét nghiệm', 8101, 400);
+    }
+    for (const it of items) {
+      if (!it.test_name && !it.ten_xet_nghiem) {
+        throw createAppError('Tên xét nghiệm không được để rỗng', 8102, 400);
+      }
+    }
+
+    const reqBy = user?.ma_nguoi ? Number(user.ma_nguoi) : Number(user.ma_tai_khoan);
+    const created = await prisma.labRequest.create({
+      data: {
+        maHoSo: BigInt(hs.ma_ho_so),
+        requestedBy: BigInt(reqBy),
+        status: 'pending',
+        note: data.note || null,
+        items: {
+          create: items.map((it) => ({
+            testName: String(it.test_name || it.ten_xet_nghiem).trim(),
+            description: it.description || null,
+          })),
+        },
+      },
+      include: { items: { orderBy: { id: 'asc' } } },
+    });
+
+    return {
+      id: String(created.id),
+      medical_record_id: String(created.maHoSo),
+      requested_by: String(created.requestedBy),
+      status: created.status,
+      note: created.note,
+      items: created.items.map((it) => ({
+        id: String(it.id),
+        test_name: it.testName,
+        description: it.description,
+      })),
+      created_at: created.createdAt.toISOString(),
+    };
+  }
+
   async getLabResultsByRecord(user, recordId) {
     const hs = await this._getRecordOrThrow(recordId, user);
+    const rid = Number(hs.ma_ho_so);
+
+    const subRequests = await prisma.labRequest.findMany({
+      where: { maHoSo: BigInt(rid) },
+      include: { items: { orderBy: { id: 'asc' } } },
+      orderBy: { id: 'desc' },
+    }).catch(() => []);
+
+    const mappedSub = subRequests.map((lr) => ({
+      id: String(lr.id),
+      requested_by: String(lr.requestedBy),
+      status: lr.status,
+      note: lr.note,
+      items: lr.items.map((it) => ({
+        id: String(it.id),
+        test_name: it.testName,
+        result_id: it.resultId ? String(it.resultId) : null,
+        result_value: it.resultValue,
+        concluded_by: it.concludedBy ? String(it.concludedBy) : null,
+        result_note: it.resultNote,
+      })),
+      created_at: lr.createdAt.toISOString(),
+    }));
+
     const res = await db.query(
-      `SELECT k.*, pk.ma_ho_so, pk.ngay_kham, pk.lan_kham_thu,
-              kc.lym, kc.neu, kc.plt, kc.nlr, kc.plr,
-              km.eo, km.anti_tpo, km.tsh, km.test_huyet_thanh_tu_than
+      `SELECT k.*, pk.ma_ho_so, pk.ngay_kham, pk.ma_bac_si
        FROM public.ketquacanlamsang k
        JOIN public.phienkham pk ON k.ma_phien_kham = pk.ma_phien_kham
-       LEFT JOIN public.ketquacanlamsangcap kc ON k.ma_ket_qua_can_lam_sang = kc.ma_ket_qua_can_lam_sang
-       LEFT JOIN public.ketquacanlamsangman km ON k.ma_ket_qua_can_lam_sang = km.ma_ket_qua_can_lam_sang
        WHERE pk.ma_ho_so = $1
        ORDER BY k.ma_ket_qua_can_lam_sang DESC`,
-      [hs.ma_ho_so]
+      [rid]
     );
-    return res.rows.map((r) => ({
-      ...r,
-      ma_ket_qua_can_lam_sang: Number(r.ma_ket_qua_can_lam_sang),
-      ma_phien_kham: Number(r.ma_phien_kham),
-      ma_ho_so: Number(r.ma_ho_so),
+
+    const mappedMain = res.rows.map((r) => ({
+      id: String(r.ma_ket_qua_can_lam_sang),
+      requested_by: r.ma_bac_si ? String(r.ma_bac_si) : null,
+      status: 'completed',
+      note: null,
+      items: [
+        {
+          id: String(r.ma_ket_qua_can_lam_sang),
+          test_name: 'Cận lâm sàng tổng hợp',
+          result_id: String(r.ma_ket_qua_can_lam_sang),
+          result_value: JSON.stringify({
+            wbc: r.wbc ?? null,
+            crp: r.crp ?? null,
+            ige_toan_phan: r.ige_toan_phan ?? null,
+            ket_qua_test_lay_da: r.ket_qua_test_lay_da ?? null,
+          }),
+          concluded_by: r.ma_bac_si ? String(r.ma_bac_si) : null,
+          result_note: r.ket_luan_can_lam_sang ?? null,
+        },
+      ],
+      created_at: r.ngay_kham ? new Date(r.ngay_kham).toISOString() : new Date().toISOString(),
     }));
+
+    return [...mappedSub, ...mappedMain];
   }
 
   async createPrescription(user, data = {}) {
@@ -928,7 +1089,7 @@ class PatientFlowService {
     const hs = await this._getRecordOrThrow(rid, user);
     const items = Array.isArray(data.items) ? data.items : Array.isArray(data.medicines) ? data.medicines : [];
     if (items.length === 0) {
-      throw createAppError('Đơn thuốc phải có ít nhất 1 thuốc trong items[]', 2001, 400);
+      throw createAppError('Đơn thuốc phải có ít nhất 1 thuốc', 8001, 400);
     }
 
     // Live DB public.donthuoc yêu cầu ma_phien_kham NOT NULL
@@ -958,7 +1119,7 @@ class PatientFlowService {
           sessionId,
           data.ngay_ke_don || null,
           ['DANG_DIEU_TRI', 'HOAN_THANH', 'HUY'].includes(data.trang_thai_don) ? data.trang_thai_don : 'DANG_DIEU_TRI',
-          data.ghi_chu_dieu_tri || data.notes || null,
+          data.note || data.ghi_chu_dieu_tri || data.notes || null,
           Boolean(data.ngung_thuoc_lan_sau ?? false),
           data.thuoc_can_ngung_truoc_tai_kham || null,
         ]
@@ -966,6 +1127,8 @@ class PatientFlowService {
       donRow = dtRes.rows[0];
 
       for (const it of items) {
+        const medName = it.medicine_name || it.ten_thuoc_bo_sung || it.ten_thuoc || null;
+        if (!medName) throw createAppError('Tên thuốc không được để rỗng', 8002, 400);
         let maThuoc = it.ma_thuoc || null;
         if (maThuoc) {
           const tCheck = await client.query('SELECT ma_thuoc FROM public.thuoc WHERE ma_thuoc = $1 LIMIT 1', [maThuoc]);
@@ -979,13 +1142,20 @@ class PatientFlowService {
           [
             donRow.ma_don_thuoc,
             maThuoc,
-            it.ten_thuoc_bo_sung || it.ten_thuoc || it.medicine_name || null,
-            it.lieu_dung || it.dosage || '1 viên/ngày',
-            it.thoi_gian_dung || it.duration || '14 ngày',
+            medName,
+            it.dosage || it.lieu_dung || '1 viên/ngày',
+            it.duration || it.thoi_gian_dung || '7 ngày',
             it.ma_ke_hoach_dieu_tri || null,
           ]
         );
-        savedItems.push(ctRes.rows[0]);
+        savedItems.push({
+          row: ctRes.rows[0],
+          medicine_name: medName,
+          dosage: it.dosage ?? it.lieu_dung ?? null,
+          frequency: it.frequency ?? null,
+          duration: it.duration ?? it.thoi_gian_dung ?? null,
+          instruction: it.instruction ?? null,
+        });
       }
 
       await client.query('COMMIT');
@@ -996,15 +1166,21 @@ class PatientFlowService {
       client.release();
     }
 
+    const createdBy = user?.ma_nguoi ? String(user.ma_nguoi) : String(user.ma_tai_khoan);
     return {
-      ...donRow,
-      ma_don_thuoc: Number(donRow.ma_don_thuoc),
-      ma_ho_so: Number(donRow.ma_ho_so),
-      items: savedItems.map((c) => ({
-        ...c,
-        ma_chi_tiet_don_thuoc: Number(c.ma_chi_tiet_don_thuoc),
-        ma_don_thuoc: Number(c.ma_don_thuoc),
+      prescription_id: String(donRow.ma_don_thuoc),
+      medical_record_id: String(donRow.ma_ho_so),
+      created_by: createdBy,
+      note: donRow.ghi_chu_dieu_tri ?? null,
+      items: savedItems.map((s) => ({
+        prescription_item_id: String(s.row.ma_chi_tiet_don_thuoc),
+        medicine_name: s.medicine_name,
+        dosage: s.dosage,
+        frequency: s.frequency,
+        duration: s.duration,
+        instruction: s.instruction,
       })),
+      created_at: donRow.ngay_ke_don ? new Date(donRow.ngay_ke_don).toISOString() : new Date().toISOString(),
     };
   }
 
@@ -1080,7 +1256,7 @@ class PatientFlowService {
       maBenhNhan = await resolvePatientIdForUser(db, user);
     }
     if (!maBenhNhan) {
-      return { eligible: false, reason: 'Tài khoản chưa liên kết hồ sơ bệnh nhân' };
+      return { eligible: 'false', medical_record_id: null };
     }
     maBenhNhan = await patientService.assertPatientAccess(user, maBenhNhan);
     const manRes = await db.query(
@@ -1089,12 +1265,10 @@ class PatientFlowService {
        ORDER BY ma_ho_so DESC LIMIT 1`,
       [maBenhNhan]
     );
+    const isEligible = manRes.rows.length > 0;
     return {
-      ma_benh_nhan: maBenhNhan,
-      eligible: manRes.rows.length > 0,
-      has_chronic_record: manRes.rows.length > 0,
-      latest_chronic_record_id: manRes.rows[0] ? Number(manRes.rows[0].ma_ho_so) : null,
-      reason: manRes.rows.length > 0 ? 'Đủ điều kiện chấm điểm UAS7 hàng ngày' : 'Cần có bệnh án mày đay mạn tính để theo dõi UAS7 theo chu kỳ',
+      eligible: isEligible ? 'true' : 'false',
+      medical_record_id: manRes.rows[0] ? String(manRes.rows[0].ma_ho_so) : null,
     };
   }
 
@@ -1205,7 +1379,7 @@ class PatientFlowService {
           whealScore,
           itchScore,
           uasDaily: whealScore + itchScore,
-          notes: data.notes !== undefined ? data.notes : undefined,
+          notes: data.notes !== undefined ? data.notes : (data.note !== undefined ? data.note : undefined),
           medicationChanged: data.medication_changed !== undefined ? Boolean(data.medication_changed) : undefined,
           medicationStatus: data.medication_status || data.trang_thai_dung_thuoc || undefined,
         },
@@ -1214,25 +1388,49 @@ class PatientFlowService {
       console.warn('[UAS7 Note Warning]', subErr.message);
     }
 
-    return {
-      ...row,
-      ma_nhat_ky_uas: Number(row.ma_nhat_ky_uas),
-      ma_chu_ky: row.ma_chu_ky ? Number(row.ma_chu_ky) : null,
-      ma_benh_nhan: Number(row.ma_benh_nhan),
-      score_date: scoreDate,
-      wheal_score: row.diem_san_phu_hss,
-      itch_score: row.diem_ngua_iss,
-      uas_daily: row.diem_uas_ngay,
-      notes: data.notes || null,
-    };
+    const [allLogs, notes] = await Promise.all([
+      db.query(
+        'SELECT * FROM public.nhatkyuashangngay WHERE ma_benh_nhan = $1 ORDER BY ngay_cham_diem DESC LIMIT 90',
+        [maBenhNhan]
+      ),
+      prisma.uas7Note.findMany({ where: { maBenhNhan: BigInt(maBenhNhan) } }).catch(() => []),
+    ]);
+    const noteMap = new Map(notes.map((n) => [n.scoreDate, n]));
+    return allLogs.rows.map((r) => {
+      const dStr = this._formatDateYmd(r.ngay_cham_diem);
+      const sub = noteMap.get(dStr);
+      const daily = r.diem_uas_ngay ?? Number(r.diem_san_phu_hss) + Number(r.diem_ngua_iss);
+      return {
+        patient_id: String(r.ma_benh_nhan),
+        medical_record_id: r.ma_ho_so_man ? String(r.ma_ho_so_man) : (sub?.maHoSoMan ? String(sub.maHoSoMan) : null),
+        score_date: dStr,
+        iss7: String(r.diem_ngua_iss),
+        hss7: String(r.diem_san_phu_hss),
+        daily_score: String(daily),
+        note: sub?.notes ?? null,
+        created_at: sub?.createdAt ? sub.createdAt.toISOString() : new Date().toISOString(),
+        updated_at: r.thoi_diem_cap_nhat ? new Date(r.thoi_diem_cap_nhat).toISOString() : new Date().toISOString(),
+      };
+    });
+  }
+
+  _formatDateYmd(val) {
+    if (!val) return null;
+    if (val instanceof Date) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return String(val).slice(0, 10);
   }
 
   _classifyUas7Level(score) {
-    if (score === 0) return 'Không còn hoạt động bệnh (0)';
-    if (score <= 6) return 'Kiểm soát tốt / Rất nhẹ (1-6)';
-    if (score <= 15) return 'Mức độ nhẹ (7-15)';
-    if (score <= 27) return 'Mức độ trung bình (16-27)';
-    return 'Mức độ nặng (28-42)';
+    if (score === 0) return 'Không có';
+    if (score <= 6) return 'Kiểm soát tốt';
+    if (score <= 15) return 'Nhẹ';
+    if (score <= 27) return 'Trung bình';
+    return 'Nặng';
   }
 
   async getUas7Scores(user, queryParams = {}) {
@@ -1256,7 +1454,7 @@ class PatientFlowService {
       dateFilter += ` AND n.ngay_cham_diem <= $${params.length}::DATE`;
     }
 
-    const [logsRes, cyclesRes, notes] = await Promise.all([
+    const [logsRes, notes] = await Promise.all([
       db.query(
         `SELECT n.* FROM public.nhatkyuashangngay n
          WHERE n.ma_benh_nhan = $1 ${dateFilter}
@@ -1264,51 +1462,59 @@ class PatientFlowService {
          LIMIT 90`,
         params
       ),
-      db.query(
-        `SELECT * FROM public.v_chukytheodoiuas7
-         WHERE ma_benh_nhan = $1
-         ORDER BY ngay_bat_dau DESC
-         LIMIT 12`,
-        [maBenhNhan]
-      ),
       prisma.uas7Note.findMany({ where: { maBenhNhan: BigInt(maBenhNhan) } }).catch(() => []),
     ]);
 
     const noteMap = new Map(notes.map((n) => [n.scoreDate, n]));
-    const items = logsRes.rows.map((r) => {
-      const dateStr = r.ngay_cham_diem instanceof Date ? r.ngay_cham_diem.toISOString().slice(0, 10) : String(r.ngay_cham_diem).slice(0, 10);
+    return logsRes.rows.map((r) => {
+      const dateStr = this._formatDateYmd(r.ngay_cham_diem);
       const sub = noteMap.get(dateStr);
+      const daily = r.diem_uas_ngay ?? Number(r.diem_san_phu_hss) + Number(r.diem_ngua_iss);
       return {
-        ...r,
-        ma_nhat_ky_uas: Number(r.ma_nhat_ky_uas),
-        ma_chu_ky: r.ma_chu_ky ? Number(r.ma_chu_ky) : null,
-        ma_benh_nhan: Number(r.ma_benh_nhan),
+        patient_id: String(r.ma_benh_nhan),
+        medical_record_id: r.ma_ho_so_man ? String(r.ma_ho_so_man) : (sub?.maHoSoMan ? String(sub.maHoSoMan) : null),
         score_date: dateStr,
-        wheal_score: r.diem_san_phu_hss,
-        itch_score: r.diem_ngua_iss,
-        uas_daily: r.diem_uas_ngay,
-        notes: sub?.notes || null,
-        medication_changed: sub?.medicationChanged || false,
+        iss7: String(r.diem_ngua_iss),
+        hss7: String(r.diem_san_phu_hss),
+        daily_score: String(daily),
+        note: sub?.notes ?? null,
       };
     });
+  }
 
-    const last7 = items.slice(0, 7);
-    const uas7Score = last7.reduce((sum, x) => sum + (Number(x.uas_daily) || 0), 0);
+  async getUas7WeekSummary(user, queryParams = {}) {
+    let maBenhNhan = queryParams.patient_id || queryParams.ma_benh_nhan;
+    if (!isStaffRole(user) || !maBenhNhan) {
+      maBenhNhan = await resolvePatientIdForUser(db, user);
+    }
+    if (!maBenhNhan) {
+      throw createAppError('Thiếu mã bệnh nhân', 2001, 400);
+    }
+    maBenhNhan = await patientService.assertPatientAccess(user, maBenhNhan);
 
+    const params = [maBenhNhan];
+    let sql;
+    if (queryParams.start_date) {
+      params.push(String(queryParams.start_date).slice(0, 10));
+      sql = `SELECT * FROM public.nhatkyuashangngay
+             WHERE ma_benh_nhan = $1 AND ngay_cham_diem >= $2::DATE AND ngay_cham_diem < ($2::DATE + 7)
+             ORDER BY ngay_cham_diem DESC`;
+    } else {
+      sql = `SELECT * FROM public.nhatkyuashangngay
+             WHERE ma_benh_nhan = $1
+             ORDER BY ngay_cham_diem DESC
+             LIMIT 7`;
+    }
+    const res = await db.query(sql, params);
+    const weekScore = res.rows.reduce(
+      (sum, r) => sum + Number(r.diem_uas_ngay ?? Number(r.diem_san_phu_hss) + Number(r.diem_ngua_iss)),
+      0
+    );
     return {
-      ma_benh_nhan: maBenhNhan,
-      summary: {
-        days_logged: items.length,
-        latest_7_days_count: last7.length,
-        uas7_score: uas7Score,
-        severity_level: this._classifyUas7Level(uas7Score),
-      },
-      cycles: cyclesRes.rows.map((c) => ({
-        ...c,
-        ma_chu_ky: Number(c.ma_chu_ky),
-        ma_benh_nhan: Number(c.ma_benh_nhan),
-      })),
-      items,
+      patient_id: String(maBenhNhan),
+      week_score: String(weekScore),
+      severity_label: this._classifyUas7Level(weekScore),
+      completed_days: String(res.rows.length),
     };
   }
 
@@ -1402,9 +1608,32 @@ class PatientFlowService {
     return { hoanCanh: clean, hoanCanhKhac: null };
   }
 
+  _formatEpisodeFull(r, meta = null, maHoSoFallback = null) {
+    const rid = meta?.maHoSo ? Number(meta.maHoSo) : r.ma_ho_so_man ? Number(r.ma_ho_so_man) : maHoSoFallback;
+    return {
+      episode_id: String(r.ma_dot_ton_thuong_da),
+      medical_record_id: rid ? String(rid) : null,
+      patient_id: String(r.ma_benh_nhan),
+      name: r.ten_dot_ton_thuong_da || '',
+      occurred_at: r.thoi_diem_xuat_hien ? new Date(r.thoi_diem_xuat_hien).toISOString() : null,
+      context_tags: meta?.contextTags ?? (r.hoan_canh_xuat_hien_khac || r.hoan_canh_xuat_hien || null),
+      context_other: meta?.contextOther ?? r.hoan_canh_xuat_hien_khac ?? null,
+      medication_name: r.ten_thuoc_dung_gan_thoi_diem_xuat_hien || null,
+      medication_taken_ago: meta?.medicationTakenAgo ?? r.thoi_gian_dung_thuoc_truoc_khi_xuat_hien ?? null,
+      medication_unit: meta?.medicationUnit ?? r.don_vi_thoi_gian ?? null,
+      description: r.chi_tiet_dot_ton_thuong || null,
+      created_at: r.thoi_diem_tao ? new Date(r.thoi_diem_tao).toISOString() : null,
+      updated_at: r.thoi_diem_cap_nhat ? new Date(r.thoi_diem_cap_nhat).toISOString() : null,
+    };
+  }
+
   async createLesionEpisode(user, data = {}) {
     const rid = parseInt(data.ma_ho_so || data.medical_record_id, 10);
     const hs = await this._getRecordOrThrow(rid, user);
+    const epName = data.ten_dot_ton_thuong_da || data.episode_name || data.name || '';
+    if (!String(epName).trim()) {
+      throw createAppError('Tên đợt tổn thương không được để rỗng', 7004, 400);
+    }
 
     // Chỉ gán ma_ho_so_man nếu hồ sơ là MAN (FK tới benhanmaydayman), còn CAP để NULL & lưu ở Sub DB
     const maHoSoMan = hs.loai_benh_an === 'MAN' ? Number(hs.ma_ho_so) : null;
@@ -1412,8 +1641,12 @@ class PatientFlowService {
     const ctxTagOther = !rawCtx && data.context_tags ? 'Khac' : rawCtx;
     const ctxOtherDetail =
       data.hoan_canh_xuat_hien_khac ||
+      data.context_other ||
       (!rawCtx && data.context_tags ? String(data.context_tags) : null);
     const { hoanCanh, hoanCanhKhac } = this._normalizeCircumstance(ctxTagOther, ctxOtherDetail);
+
+    const takenAgo = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien ?? data.medication_taken_ago ?? null;
+    const medUnit = data.don_vi_thoi_gian ?? data.medication_unit ?? null;
 
     const res = await db.query(
       `INSERT INTO public.dottonthuongda (
@@ -1425,19 +1658,19 @@ class PatientFlowService {
       [
         hs.ma_benh_nhan,
         maHoSoMan,
-        data.ten_dot_ton_thuong_da || data.episode_name || data.name || 'Đợt bùng phát mới',
+        String(epName).trim(),
         data.thoi_diem_xuat_hien || data.started_at || data.occurred_at || new Date(),
         hoanCanh,
         hoanCanhKhac,
         data.ten_thuoc_dung_gan_thoi_diem_xuat_hien || data.medication_name || null,
-        data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien || null,
-        data.don_vi_thoi_gian || null,
+        takenAgo,
+        medUnit,
         data.chi_tiet_dot_ton_thuong || data.notes || data.description || null,
       ]
     );
     const row = res.rows[0];
 
-    await prisma.lesionEpisodeMeta.upsert({
+    const meta = await prisma.lesionEpisodeMeta.upsert({
       where: { maDotTonThuong: BigInt(row.ma_dot_ton_thuong_da) },
       create: {
         maDotTonThuong: BigInt(row.ma_dot_ton_thuong_da),
@@ -1445,20 +1678,20 @@ class PatientFlowService {
         maBenhNhan: BigInt(hs.ma_benh_nhan),
         hasLesions: data.has_lesions !== undefined ? Boolean(data.has_lesions) : true,
         triggerCategory: hoanCanh,
+        contextTags: data.context_tags !== undefined ? String(data.context_tags) : null,
+        contextOther: data.context_other !== undefined ? String(data.context_other) : null,
+        medicationTakenAgo: takenAgo !== null ? String(takenAgo) : null,
+        medicationUnit: medUnit !== null ? String(medUnit) : null,
       },
       update: {
         hasLesions: data.has_lesions !== undefined ? Boolean(data.has_lesions) : true,
         triggerCategory: hoanCanh,
+        contextTags: data.context_tags !== undefined ? String(data.context_tags) : undefined,
+        contextOther: data.context_other !== undefined ? String(data.context_other) : undefined,
       },
     }).catch(() => null);
 
-    return {
-      ...row,
-      ma_dot_ton_thuong_da: Number(row.ma_dot_ton_thuong_da),
-      ma_benh_nhan: Number(row.ma_benh_nhan),
-      ma_ho_so: Number(hs.ma_ho_so),
-      id: Number(row.ma_dot_ton_thuong_da),
-    };
+    return this._formatEpisodeFull(row, meta, Number(hs.ma_ho_so));
   }
 
   async getLesionEpisodes(user, queryParams = {}) {
@@ -1484,31 +1717,58 @@ class PatientFlowService {
       .catch(() => []);
     const metaMap = new Map(metas.map((m) => [Number(m.maDotTonThuong), m]));
 
-    let result = rowsRes.rows.map((r) => {
-      const m = metaMap.get(Number(r.ma_dot_ton_thuong_da));
-      return {
-        ...r,
-        ma_dot_ton_thuong_da: Number(r.ma_dot_ton_thuong_da),
-        ma_benh_nhan: Number(r.ma_benh_nhan),
-        ma_ho_so_man: r.ma_ho_so_man ? Number(r.ma_ho_so_man) : null,
-        ma_ho_so: m ? Number(m.maHoSo) : r.ma_ho_so_man ? Number(r.ma_ho_so_man) : null,
-        id: Number(r.ma_dot_ton_thuong_da),
-        has_lesions: m ? m.hasLesions : true,
-      };
-    });
-
+    let rows = rowsRes.rows.map((r) => ({ r, m: metaMap.get(Number(r.ma_dot_ton_thuong_da)) }));
     if (recordId) {
       const rid = parseInt(recordId, 10);
-      result = result.filter((e) => e.ma_ho_so === rid || e.ma_ho_so_man === rid);
+      rows = rows.filter(({ r, m }) => (m && Number(m.maHoSo) === rid) || Number(r.ma_ho_so_man) === rid);
     }
-    return result;
+
+    return rows.map(({ r, m }) => {
+      const rid = m?.maHoSo ? Number(m.maHoSo) : r.ma_ho_so_man ? Number(r.ma_ho_so_man) : null;
+      return {
+        episode_id: String(r.ma_dot_ton_thuong_da),
+        medical_record_id: rid ? String(rid) : null,
+        patient_id: String(r.ma_benh_nhan),
+        name: r.ten_dot_ton_thuong_da || '',
+        occurred_at: r.thoi_diem_xuat_hien ? new Date(r.thoi_diem_xuat_hien).toISOString() : null,
+        description: r.chi_tiet_dot_ton_thuong || null,
+        created_at: r.thoi_diem_tao ? new Date(r.thoi_diem_tao).toISOString() : null,
+        updated_at: r.thoi_diem_cap_nhat ? new Date(r.thoi_diem_cap_nhat).toISOString() : null,
+      };
+    });
+  }
+
+  async getLesionEpisodesByRecord(user, recordId) {
+    const hs = await this._getRecordOrThrow(recordId, user);
+    const rid = Number(hs.ma_ho_so);
+    const [rowsRes, metas] = await Promise.all([
+      db.query(
+        'SELECT * FROM public.dottonthuongda WHERE ma_benh_nhan = $1 ORDER BY ma_dot_ton_thuong_da DESC',
+        [hs.ma_benh_nhan]
+      ),
+      prisma.lesionEpisodeMeta.findMany({ where: { maHoSo: BigInt(rid) } }).catch(() => []),
+    ]);
+    const metaMap = new Map(metas.map((m) => [Number(m.maDotTonThuong), m]));
+    return rowsRes.rows
+      .filter((r) => metaMap.has(Number(r.ma_dot_ton_thuong_da)) || Number(r.ma_ho_so_man) === rid)
+      .map((r) => {
+        const m = metaMap.get(Number(r.ma_dot_ton_thuong_da));
+        return {
+          id: String(r.ma_dot_ton_thuong_da),
+          medical_record_id: String(rid),
+          name: r.ten_dot_ton_thuong_da || '',
+          occurred_at: r.thoi_diem_xuat_hien ? new Date(r.thoi_diem_xuat_hien).toISOString() : null,
+          context_tags: m?.contextTags ?? r.hoan_canh_xuat_hien_khac ?? r.hoan_canh_xuat_hien ?? null,
+          description: r.chi_tiet_dot_ton_thuong || null,
+        };
+      });
   }
 
   async updateLesionEpisode(user, episodeId, data = {}) {
     const eid = parseInt(episodeId, 10);
     const chk = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const existing = chk.rows[0];
-    if (!existing) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 3007, 404);
+    if (!existing) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
     await patientService.assertPatientAccess(user, existing.ma_benh_nhan);
 
     const sets = [];
@@ -1517,6 +1777,22 @@ class PatientFlowService {
     if (data.ten_dot_ton_thuong_da !== undefined || data.episode_name !== undefined || data.name !== undefined) {
       sets.push(`ten_dot_ton_thuong_da = $${idx++}`);
       vals.push(data.ten_dot_ton_thuong_da ?? data.episode_name ?? data.name);
+    }
+    if (data.occurred_at !== undefined || data.thoi_diem_xuat_hien !== undefined) {
+      sets.push(`thoi_diem_xuat_hien = $${idx++}`);
+      vals.push(data.occurred_at ?? data.thoi_diem_xuat_hien);
+    }
+    if (data.medication_name !== undefined || data.ten_thuoc_dung_gan_thoi_diem_xuat_hien !== undefined) {
+      sets.push(`ten_thuoc_dung_gan_thoi_diem_xuat_hien = $${idx++}`);
+      vals.push(data.medication_name ?? data.ten_thuoc_dung_gan_thoi_diem_xuat_hien);
+    }
+    if (data.medication_taken_ago !== undefined || data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien !== undefined) {
+      sets.push(`thoi_gian_dung_thuoc_truoc_khi_xuat_hien = $${idx++}`);
+      vals.push(data.medication_taken_ago ?? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien);
+    }
+    if (data.medication_unit !== undefined || data.don_vi_thoi_gian !== undefined) {
+      sets.push(`don_vi_thoi_gian = $${idx++}`);
+      vals.push(data.medication_unit ?? data.don_vi_thoi_gian);
     }
     if (data.chi_tiet_dot_ton_thuong !== undefined || data.notes !== undefined || data.description !== undefined) {
       sets.push(`chi_tiet_dot_ton_thuong = $${idx++}`);
@@ -1540,65 +1816,85 @@ class PatientFlowService {
       updated = uRes.rows[0];
     }
 
-    if (data.ended_at !== undefined || data.has_lesions !== undefined) {
+    const subData = {};
+    if (data.ended_at !== undefined) subData.endedAt = data.ended_at ? new Date(data.ended_at) : null;
+    if (data.has_lesions !== undefined) subData.hasLesions = Boolean(data.has_lesions);
+    if (data.context_tags !== undefined) subData.contextTags = String(data.context_tags);
+    if (data.context_other !== undefined) subData.contextOther = String(data.context_other);
+    if (data.medication_taken_ago !== undefined) subData.medicationTakenAgo = String(data.medication_taken_ago);
+    if (data.medication_unit !== undefined) subData.medicationUnit = String(data.medication_unit);
+    if (Object.keys(subData).length > 0) {
       await prisma.lesionEpisodeMeta.updateMany({
         where: { maDotTonThuong: BigInt(eid) },
-        data: {
-          endedAt: data.ended_at ? new Date(data.ended_at) : undefined,
-          hasLesions: data.has_lesions !== undefined ? Boolean(data.has_lesions) : undefined,
-        },
+        data: subData,
       }).catch(() => null);
     }
 
-    return {
-      ...updated,
-      ma_dot_ton_thuong_da: Number(updated.ma_dot_ton_thuong_da),
-      ma_benh_nhan: Number(updated.ma_benh_nhan),
-      id: Number(updated.ma_dot_ton_thuong_da),
-    };
+    const meta = await prisma.lesionEpisodeMeta.findUnique({ where: { maDotTonThuong: BigInt(eid) } }).catch(() => null);
+    return this._formatEpisodeFull(updated, meta);
   }
 
   async getLesionEpisodeById(user, episodeId) {
     const eid = parseInt(episodeId, 10);
     const res = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const row = res.rows[0];
-    if (!row) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 3007, 404);
+    if (!row) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
     await patientService.assertPatientAccess(user, row.ma_benh_nhan);
-    const locations = await this.getLesionLocations(user, { episode_id: eid });
-    return {
-      ...row,
-      ma_dot_ton_thuong_da: Number(row.ma_dot_ton_thuong_da),
-      ma_benh_nhan: Number(row.ma_benh_nhan),
-      id: Number(row.ma_dot_ton_thuong_da),
-      locations,
-    };
+    const meta = await prisma.lesionEpisodeMeta.findUnique({ where: { maDotTonThuong: BigInt(eid) } }).catch(() => null);
+    return this._formatEpisodeFull(row, meta);
   }
 
   async deleteLesionEpisode(user, episodeId) {
     const eid = parseInt(episodeId, 10);
     const res = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 3007, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_dot_ton_thuong_da = $1', [eid]);
     await db.query('DELETE FROM public.vitritonthuong WHERE ma_dot_ton_thuong_da = $1', [eid]);
     await db.query('DELETE FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1', [eid]);
     await prisma.lesionEpisodeMeta.deleteMany({ where: { maDotTonThuong: BigInt(eid) } }).catch(() => null);
-    return { ma_dot_ton_thuong_da: eid, deleted: true };
+    return {};
+  }
+
+  _formatLocation(r, meta = null) {
+    return {
+      lesion_location_id: String(r.ma_vi_tri_ton_thuong),
+      episode_id: String(r.ma_dot_ton_thuong_da),
+      body_part: r.vi_tri_co_the || '',
+      occurred_at: r.thoi_diem_xuat_hien ? new Date(r.thoi_diem_xuat_hien).toISOString() : null,
+      context_tags: meta?.contextTags ?? r.hoan_canh_xuat_hien_khac ?? r.hoan_canh_xuat_hien ?? null,
+      context_other: meta?.contextOther ?? r.hoan_canh_xuat_hien_khac ?? null,
+      medication_name: meta?.medicationName ?? r.ten_thuoc_lien_quan ?? null,
+      medication_taken_ago: meta?.medicationTakenAgo ?? r.thoi_gian_dung_thuoc_truoc_khi_xuat_hien ?? null,
+      medication_unit: meta?.medicationUnit ?? r.don_vi_thoi_gian ?? null,
+      created_at: r.thoi_diem_tao ? new Date(r.thoi_diem_tao).toISOString() : null,
+      updated_at: r.thoi_diem_cap_nhat ? new Date(r.thoi_diem_cap_nhat).toISOString() : null,
+    };
   }
 
   async createLesionLocation(user, data = {}) {
     const eid = parseInt(data.episode_id || data.ma_dot_ton_thuong_da, 10);
     const epRes = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const ep = epRes.rows[0];
-    if (!ep) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 3007, 404);
+    if (!ep) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
     await patientService.assertPatientAccess(user, ep.ma_benh_nhan);
 
     const bodyPart = String(data.vi_tri_co_the || data.body_part || '').trim();
     if (!bodyPart) {
-      throw createAppError('Thiếu vị trí cơ thể (vi_tri_co_the / body_part)', 2001, 400);
+      throw createAppError('Vị trí body_part không được để rỗng', 7005, 400);
     }
-    const { hoanCanh, hoanCanhKhac } = this._normalizeCircumstance(data.hoan_canh_xuat_hien, data.hoan_canh_xuat_hien_khac);
+    const rawCtx = data.hoan_canh_xuat_hien;
+    const ctxTagOther = !rawCtx && data.context_tags ? 'Khac' : rawCtx;
+    const ctxOtherDetail =
+      data.hoan_canh_xuat_hien_khac ||
+      data.context_other ||
+      (!rawCtx && data.context_tags ? String(data.context_tags) : null);
+    const { hoanCanh, hoanCanhKhac } = this._normalizeCircumstance(ctxTagOther, ctxOtherDetail);
+
+    const medName = data.ten_thuoc_lien_quan ?? data.medication_name ?? null;
+    const takenAgo = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien ?? data.medication_taken_ago ?? null;
+    const medUnit = data.don_vi_thoi_gian ?? data.medication_unit ?? null;
 
     const ins = await db.query(
       `INSERT INTO public.vitritonthuong (
@@ -1610,21 +1906,26 @@ class PatientFlowService {
         eid,
         bodyPart,
         data.thoi_diem_xuat_hien || data.occurred_at || new Date(),
-        data.ten_thuoc_lien_quan || null,
-        data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien || null,
+        medName,
+        takenAgo,
         hoanCanh,
         hoanCanhKhac,
-        data.don_vi_thoi_gian || null,
+        medUnit,
       ]
     );
     const row = ins.rows[0];
 
-    await prisma.lesionLocationMeta.upsert({
+    const meta = await prisma.lesionLocationMeta.upsert({
       where: { maViTriTonThuong: BigInt(row.ma_vi_tri_ton_thuong) },
       create: {
         maViTriTonThuong: BigInt(row.ma_vi_tri_ton_thuong),
         maDotTonThuong: BigInt(eid),
         bodyPart,
+        contextTags: data.context_tags !== undefined ? String(data.context_tags) : null,
+        contextOther: data.context_other !== undefined ? String(data.context_other) : null,
+        medicationName: medName ? String(medName) : null,
+        medicationTakenAgo: takenAgo ? String(takenAgo) : null,
+        medicationUnit: medUnit ? String(medUnit) : null,
         lesionType: data.lesion_type || null,
         itchScoreNrs: data.itch_score_nrs !== undefined ? parseInt(data.itch_score_nrs, 10) : null,
         painScoreNrs: data.pain_score_nrs !== undefined ? parseInt(data.pain_score_nrs, 10) : null,
@@ -1633,17 +1934,12 @@ class PatientFlowService {
       update: { bodyPart },
     }).catch(() => null);
 
-    return {
-      ...row,
-      ma_vi_tri_ton_thuong: Number(row.ma_vi_tri_ton_thuong),
-      ma_dot_ton_thuong_da: Number(row.ma_dot_ton_thuong_da),
-      id: Number(row.ma_vi_tri_ton_thuong),
-      body_part: bodyPart,
-    };
+    return this._formatLocation(row, meta);
   }
 
   async getLesionLocations(user, queryParams = {}) {
     const eid = queryParams.episode_id || queryParams.ma_dot_ton_thuong_da;
+    let rows = [];
     if (eid) {
       const epRes = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [parseInt(eid, 10)]);
       if (!epRes.rows[0]) return [];
@@ -1653,36 +1949,33 @@ class PatientFlowService {
         'SELECT * FROM public.vitritonthuong WHERE ma_dot_ton_thuong_da = $1 ORDER BY ma_vi_tri_ton_thuong DESC',
         [parseInt(eid, 10)]
       );
-      return res.rows.map((r) => ({
-        ...r,
-        ma_vi_tri_ton_thuong: Number(r.ma_vi_tri_ton_thuong),
-        ma_dot_ton_thuong_da: Number(r.ma_dot_ton_thuong_da),
-        id: Number(r.ma_vi_tri_ton_thuong),
-      }));
+      rows = res.rows;
+    } else {
+      const params = [];
+      let where = '';
+      if (!isStaffRole(user)) {
+        const pid = await resolvePatientIdForUser(db, user);
+        if (!pid) return [];
+        params.push(pid);
+        where = 'WHERE d.ma_benh_nhan = $1';
+      }
+      const res = await db.query(
+        `SELECT v.* FROM public.vitritonthuong v
+         JOIN public.dottonthuongda d ON v.ma_dot_ton_thuong_da = d.ma_dot_ton_thuong_da
+         ${where}
+         ORDER BY v.ma_vi_tri_ton_thuong DESC
+         LIMIT 100`,
+        params
+      );
+      rows = res.rows;
     }
 
-    const params = [];
-    let where = '';
-    if (!isStaffRole(user)) {
-      const pid = await resolvePatientIdForUser(db, user);
-      if (!pid) return [];
-      params.push(pid);
-      where = 'WHERE d.ma_benh_nhan = $1';
-    }
-    const res = await db.query(
-      `SELECT v.* FROM public.vitritonthuong v
-       JOIN public.dottonthuongda d ON v.ma_dot_ton_thuong_da = d.ma_dot_ton_thuong_da
-       ${where}
-       ORDER BY v.ma_vi_tri_ton_thuong DESC
-       LIMIT 100`,
-      params
-    );
-    return res.rows.map((r) => ({
-      ...r,
-      ma_vi_tri_ton_thuong: Number(r.ma_vi_tri_ton_thuong),
-      ma_dot_ton_thuong_da: Number(r.ma_dot_ton_thuong_da),
-      id: Number(r.ma_vi_tri_ton_thuong),
-    }));
+    const lids = rows.map((r) => BigInt(r.ma_vi_tri_ton_thuong));
+    const metas = lids.length
+      ? await prisma.lesionLocationMeta.findMany({ where: { maViTriTonThuong: { in: lids } } }).catch(() => [])
+      : [];
+    const metaMap = new Map(metas.map((m) => [Number(m.maViTriTonThuong), m]));
+    return rows.map((r) => this._formatLocation(r, metaMap.get(Number(r.ma_vi_tri_ton_thuong))));
   }
 
   async updateLesionLocation(user, locationId, data = {}) {
@@ -1694,31 +1987,52 @@ class PatientFlowService {
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
       [lid]
     );
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 3007, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 7002, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     const bodyPart = data.vi_tri_co_the !== undefined ? data.vi_tri_co_the : data.body_part;
-    const upd = await db.query(
-      `UPDATE public.vitritonthuong
-       SET vi_tri_co_the = COALESCE($1, vi_tri_co_the),
-           ten_thuoc_lien_quan = COALESCE($2, ten_thuoc_lien_quan)
-       WHERE ma_vi_tri_ton_thuong = $3
-       RETURNING *`,
-      [bodyPart || null, data.ten_thuoc_lien_quan || null, lid]
-    );
+    const medName = data.ten_thuoc_lien_quan !== undefined ? data.ten_thuoc_lien_quan : data.medication_name;
+    const takenAgo = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien !== undefined ? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien : data.medication_taken_ago;
+    const medUnit = data.don_vi_thoi_gian !== undefined ? data.don_vi_thoi_gian : data.medication_unit;
+
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    const add = (col, val) => {
+      if (val !== undefined) {
+        sets.push(`${col} = $${idx++}`);
+        vals.push(val);
+      }
+    };
+    add('vi_tri_co_the', bodyPart);
+    add('thoi_diem_xuat_hien', data.occurred_at ?? data.thoi_diem_xuat_hien);
+    add('ten_thuoc_lien_quan', medName);
+    add('thoi_gian_dung_thuoc_truoc_khi_xuat_hien', takenAgo);
+    add('don_vi_thoi_gian', medUnit);
+
+    let updatedRow = res.rows[0];
+    if (sets.length > 0) {
+      vals.push(lid);
+      const upd = await db.query(
+        `UPDATE public.vitritonthuong SET ${sets.join(', ')} WHERE ma_vi_tri_ton_thuong = $${idx} RETURNING *`,
+        vals
+      );
+      updatedRow = upd.rows[0];
+    }
+
     const subUpdate = {};
-    if (bodyPart) subUpdate.bodyPart = bodyPart;
+    if (bodyPart !== undefined) subUpdate.bodyPart = bodyPart;
+    if (data.context_tags !== undefined) subUpdate.contextTags = String(data.context_tags);
+    if (data.context_other !== undefined) subUpdate.contextOther = String(data.context_other);
+    if (medName !== undefined) subUpdate.medicationName = medName;
+    if (takenAgo !== undefined) subUpdate.medicationTakenAgo = takenAgo;
+    if (medUnit !== undefined) subUpdate.medicationUnit = medUnit;
     if (data.notes !== undefined) subUpdate.notes = data.notes;
     if (Object.keys(subUpdate).length > 0) {
       await prisma.lesionLocationMeta.updateMany({ where: { maViTriTonThuong: BigInt(lid) }, data: subUpdate }).catch(() => null);
     }
     const meta = await prisma.lesionLocationMeta.findUnique({ where: { maViTriTonThuong: BigInt(lid) } }).catch(() => null);
-    return {
-      ...upd.rows[0],
-      ma_vi_tri_ton_thuong: Number(upd.rows[0].ma_vi_tri_ton_thuong),
-      id: Number(upd.rows[0].ma_vi_tri_ton_thuong),
-      notes: meta?.notes ?? null,
-    };
+    return this._formatLocation(updatedRow, meta);
   }
 
   async deleteLesionLocation(user, locationId) {
@@ -1730,13 +2044,13 @@ class PatientFlowService {
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
       [lid]
     );
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 3007, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 7002, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_vi_tri_ton_thuong = $1', [lid]);
     await db.query('DELETE FROM public.vitritonthuong WHERE ma_vi_tri_ton_thuong = $1', [lid]);
     await prisma.lesionLocationMeta.deleteMany({ where: { maViTriTonThuong: BigInt(lid) } }).catch(() => null);
-    return { ma_vi_tri_ton_thuong: lid, deleted: true };
+    return {};
   }
 
   /**
@@ -1745,10 +2059,10 @@ class PatientFlowService {
    */
   async uploadAttachmentToSupabase(user, file, body = {}) {
     if (!file || !file.buffer) {
-      throw createAppError('Thiếu tệp tải lên (field: file)', 2001, 400);
+      throw createAppError('Chưa chọn file ảnh upload', 6001, 400);
     }
     if (!isConfigured || !supabase) {
-      throw createAppError('Supabase Storage chưa được cấu hình', 5001, 500);
+      throw createAppError('Supabase Storage chưa được cấu hình', 9903, 500);
     }
 
     const maHoSoRaw = body.medical_record_id || body.ma_ho_so;
@@ -1771,11 +2085,17 @@ class PatientFlowService {
       });
 
     if (uploadErr) {
-      throw createAppError(`Lỗi upload lên Supabase Storage: ${uploadErr.message}`, 5002, 502);
+      throw createAppError(`Lỗi upload lên Supabase Storage: ${uploadErr.message}`, 6007, 502);
     }
 
     const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(storagePath);
     const publicUrl = pubData?.publicUrl || '';
+    const origName = file.originalname || randomName;
+    const mime = file.mimetype || 'image/jpeg';
+    const mediaType = body.media_type || (mime.startsWith('image/') ? 'image' : 'document');
+    const category = body.category || body.purpose || body.phan_loai_muc_dich || null;
+    const description = body.description || body.mo_ta_tep || body.notes || null;
+    const questionId = body.question_id ? String(body.question_id) : null;
 
     let maTepDinhKem = null;
     if (maHoSo > 0) {
@@ -1788,14 +2108,14 @@ class PatientFlowService {
         [
           maHoSo,
           user.ma_tai_khoan,
-          file.originalname || randomName,
+          origName,
           storagePath,
           publicUrl,
-          file.mimetype || 'image/jpeg',
-          file.mimetype && file.mimetype.startsWith('image/') ? 'IMAGE' : 'DOCUMENT',
+          mime,
+          mediaType.toUpperCase(),
           file.size || file.buffer.length,
-          body.purpose || body.phan_loai_muc_dich || 'LESION_PHOTO',
-          body.description || body.mo_ta_tep || null,
+          category || 'LESION_PHOTO',
+          description,
         ]
       );
       maTepDinhKem = Number(tepRes.rows[0].ma_tep_dinh_kem);
@@ -1809,43 +2129,65 @@ class PatientFlowService {
         bucketName,
         storagePath,
         publicUrl,
-        dinhDangTep: file.mimetype || 'image/jpeg',
+        dinhDangTep: mime,
         dungLuongBytes: BigInt(file.size || file.buffer.length),
+        questionId,
+        mediaType,
+        category,
+        description,
+        tenTepGoc: origName,
         toaDoX: body.toa_do_x !== undefined ? parseFloat(body.toa_do_x) : null,
         toaDoY: body.toa_do_y !== undefined ? parseFloat(body.toa_do_y) : null,
         vungCoThe: body.vung_co_the || body.body_part || null,
-        ghiChuLamSang: body.ghi_chu_lam_sang || body.notes || null,
+        ghiChuLamSang: body.ghi_chu_lam_sang || null,
         diemNguaNrs: body.diem_ngua_nrs !== undefined ? parseInt(body.diem_ngua_nrs, 10) : null,
         diemDauNrs: body.diem_dau_nrs !== undefined ? parseInt(body.diem_dau_nrs, 10) : null,
       },
     });
 
+    const finalId = maTepDinhKem || anhSub.id;
     return {
-      id: maTepDinhKem || anhSub.id,
-      ma_tep_dinh_kem: maTepDinhKem,
-      sub_id: anhSub.id,
-      ma_ho_so: maHoSo || null,
-      bucket_name: bucketName,
-      storage_path: storagePath,
-      public_url: publicUrl,
-      url: publicUrl,
-      mime_type: file.mimetype,
-      size_bytes: file.size || file.buffer.length,
+      id: String(finalId),
+      user_id: String(user.ma_tai_khoan),
+      medical_record_id: maHoSo > 0 ? String(maHoSo) : null,
+      question_id: questionId,
+      file_path: storagePath,
+      file_url: publicUrl,
+      file_name: origName,
+      file_type: mime,
+      media_type: mediaType,
+      category,
+      description,
+      created_at: anhSub.thoiDiemTao ? anhSub.thoiDiemTao.toISOString() : new Date().toISOString(),
     };
+  }
+
+  async uploadMultipleAttachments(user, files = [], body = {}) {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw createAppError('Chưa chọn file ảnh upload', 6001, 400);
+    }
+    if (files.length > 10) {
+      throw createAppError('Upload tối đa 10 ảnh 1 lần', 6004, 400);
+    }
+    const results = [];
+    for (const f of files) {
+      const uploaded = await this.uploadAttachmentToSupabase(user, f, body);
+      results.push({ id: uploaded.id, file_url: uploaded.file_url });
+    }
+    return { total: String(results.length), data: results };
   }
 
   async listAttachments(user, queryParams = {}) {
     const rid = queryParams.medical_record_id || queryParams.ma_ho_so;
     const uid = queryParams.user_id || queryParams.ma_tai_khoan;
+    let rows = [];
     if (rid) {
       const hs = await this._getRecordOrThrow(rid, user);
-      const rows = await prisma.anhTonThuongMoRong.findMany({
+      rows = await prisma.anhTonThuongMoRong.findMany({
         where: { maHoSo: BigInt(hs.ma_ho_so) },
         orderBy: { thoiDiemTao: 'desc' },
       });
-      return rows;
-    }
-    if (uid) {
+    } else if (uid) {
       const parsedUid = parseInt(uid, 10);
       if (Number.isNaN(parsedUid)) throw createAppError('user_id không hợp lệ', 2003, 400);
       const selfPid = await resolvePatientIdForUser(db, user);
@@ -1861,22 +2203,73 @@ class PatientFlowService {
         [parsedUid]
       );
       const tkIds = tkRes.rows.length > 0 ? tkRes.rows.map((r) => BigInt(r.ma_tai_khoan)) : [BigInt(parsedUid)];
-      return prisma.anhTonThuongMoRong.findMany({
+      rows = await prisma.anhTonThuongMoRong.findMany({
         where: { maTaiKhoan: { in: tkIds } },
         orderBy: { thoiDiemTao: 'desc' },
         take: 100,
       });
+    } else {
+      rows = await prisma.anhTonThuongMoRong.findMany({
+        where: isStaffRole(user) ? {} : { maTaiKhoan: BigInt(user.ma_tai_khoan) },
+        orderBy: { thoiDiemTao: 'desc' },
+        take: 100,
+      });
     }
-    return prisma.anhTonThuongMoRong.findMany({
-      where: isStaffRole(user) ? {} : { maTaiKhoan: BigInt(user.ma_tai_khoan) },
-      orderBy: { thoiDiemTao: 'desc' },
-      take: 100,
+
+    return rows.map((r) => ({
+      id: String(r.maTepDinhKemGoc ? Number(r.maTepDinhKemGoc) : r.id),
+      medical_record_id: Number(r.maHoSo) > 0 ? String(Number(r.maHoSo)) : null,
+      question_id: r.questionId || null,
+      file_url: r.publicUrl,
+      file_type: r.dinhDangTep || 'image/jpeg',
+      created_at: r.thoiDiemTao ? r.thoiDiemTao.toISOString() : null,
+    }));
+  }
+
+  async viewAttachmentBinary(attachmentId) {
+    const id = parseInt(attachmentId, 10);
+    if (Number.isNaN(id)) throw createAppError('ID tệp không hợp lệ', 2003, 400);
+
+    let storagePath = null;
+    let bucket = bucketName;
+    let mimeType = 'image/jpeg';
+    let publicUrl = null;
+
+    const sub = await prisma.anhTonThuongMoRong.findFirst({
+      where: { OR: [{ maTepDinhKemGoc: BigInt(id) }, { id }] },
     });
+    if (sub) {
+      storagePath = sub.storagePath;
+      bucket = sub.bucketName || bucketName;
+      mimeType = sub.dinhDangTep || 'image/jpeg';
+      publicUrl = sub.publicUrl;
+    } else {
+      const tepRes = await db.query('SELECT * FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [id]);
+      if (!tepRes.rows[0]) throw createAppError('Không tìm thấy ảnh đính kèm', 6005, 404);
+      storagePath = tepRes.rows[0].duong_dan_luu_tru;
+      mimeType = tepRes.rows[0].dinh_dang_tep || 'image/jpeg';
+      publicUrl = tepRes.rows[0].duong_dan_url;
+    }
+
+    if (isConfigured && supabase && storagePath) {
+      const { data: blobData, error } = await supabase.storage.from(bucket).download(storagePath);
+      if (!error && blobData) {
+        const ab = await blobData.arrayBuffer();
+        return { buffer: Buffer.from(ab), mimeType };
+      }
+    }
+    if (publicUrl && /^https?:\/\//i.test(publicUrl)) {
+      const resp = await fetch(publicUrl);
+      if (resp.ok) {
+        const ab = await resp.arrayBuffer();
+        return { buffer: Buffer.from(ab), mimeType: resp.headers.get('content-type') || mimeType };
+      }
+    }
+    throw createAppError('Không tìm thấy ảnh đính kèm', 6005, 404);
   }
 
   async deleteAttachment(user, attachmentId) {
     const id = parseInt(attachmentId, 10);
-    // Tìm theo maTepDinhKemGoc hoặc Sub ID
     let sub = await prisma.anhTonThuongMoRong.findFirst({
       where: {
         OR: [{ maTepDinhKemGoc: BigInt(id) }, { id }],
@@ -1884,7 +2277,7 @@ class PatientFlowService {
     });
     if (!sub) {
       const tepRes = await db.query('SELECT * FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [id]);
-      if (!tepRes.rows[0]) throw createAppError(`Không tìm thấy tệp đính kèm #${id}`, 3007, 404);
+      if (!tepRes.rows[0]) throw createAppError(`Không tìm thấy tệp đính kèm #${id}`, 6005, 404);
       const t = tepRes.rows[0];
       if (!isStaffRole(user) && Number(t.ma_tai_khoan) !== Number(user.ma_tai_khoan)) {
         throw createAppError('Không có quyền xóa tệp đính kèm của người khác', 3106, 403);
@@ -1894,7 +2287,7 @@ class PatientFlowService {
       }
       await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_tep_dinh_kem = $1', [id]);
       await db.query('DELETE FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1', [id]);
-      return { id, deleted: true };
+      return {};
     }
 
     if (!isStaffRole(user) && Number(sub.maTaiKhoan) !== Number(user.ma_tai_khoan)) {
@@ -1911,7 +2304,48 @@ class PatientFlowService {
       await db.query('DELETE FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1', [tepId]).catch(() => null);
     }
     await prisma.anhTonThuongMoRong.delete({ where: { id: sub.id } });
-    return { id, deleted: true };
+    return {};
+  }
+
+  _formatLesionPhoto(r, annotatedUrl = null) {
+    return {
+      photo_id: String(r.ma_anh),
+      episode_id: r.ma_dot_ton_thuong_da ? String(r.ma_dot_ton_thuong_da) : null,
+      location_id: r.ma_vi_tri_ton_thuong ? String(r.ma_vi_tri_ton_thuong) : null,
+      attachment_id: String(r.ma_tep_dinh_kem),
+      taken_at: r.thoi_diem_chup ? new Date(r.thoi_diem_chup).toISOString() : null,
+      milestone: r.moc_tien_trien || null,
+      itch_score: r.diem_ngua_nrs !== null && r.diem_ngua_nrs !== undefined ? String(r.diem_ngua_nrs) : null,
+      pain_score: r.diem_dau_nrs !== null && r.diem_dau_nrs !== undefined ? String(r.diem_dau_nrs) : null,
+      burn_score: r.diem_bong_rat_nrs !== null && r.diem_bong_rat_nrs !== undefined ? String(r.diem_bong_rat_nrs) : null,
+      hives_count: r.so_luong_not_san !== null && r.so_luong_not_san !== undefined ? String(r.so_luong_not_san) : null,
+      local_auas: r.chi_so_auas_cuc_bo !== null && r.chi_so_auas_cuc_bo !== undefined ? String(r.chi_so_auas_cuc_bo) : null,
+      annotated_url: annotatedUrl ?? null,
+      created_at: r.thoi_diem_tao ? new Date(r.thoi_diem_tao).toISOString() : null,
+      updated_at: r.thoi_diem_cap_nhat ? new Date(r.thoi_diem_cap_nhat).toISOString() : null,
+    };
+  }
+
+  async _resolveOrSyncTepDinhKemId(rawAttId, fallbackHoSo, user) {
+    const aid = parseInt(rawAttId, 10);
+    if (Number.isNaN(aid)) return null;
+    const direct = await db.query('SELECT ma_tep_dinh_kem, duong_dan_url FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [aid]);
+    if (direct.rows[0]) return { id: Number(direct.rows[0].ma_tep_dinh_kem), url: direct.rows[0].duong_dan_url };
+
+    const sub = await prisma.anhTonThuongMoRong.findFirst({ where: { OR: [{ maTepDinhKemGoc: BigInt(aid) }, { id: aid }] } });
+    if (!sub) return null;
+    if (sub.maTepDinhKemGoc) return { id: Number(sub.maTepDinhKemGoc), url: sub.publicUrl };
+
+    const targetHoSo = Number(sub.maHoSo) > 0 ? Number(sub.maHoSo) : fallbackHoSo;
+    if (!targetHoSo) return null;
+    const ins = await db.query(
+      `INSERT INTO public.tepdinhkem (ma_ho_so, ma_tai_khoan, ten_tep_goc, duong_dan_luu_tru, duong_dan_url, dinh_dang_tep, dung_luong_byte)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ma_tep_dinh_kem`,
+      [targetHoSo, Number(sub.maTaiKhoan || user.ma_tai_khoan), sub.tenTepGoc || 'image.jpg', sub.storagePath, sub.publicUrl, sub.dinhDangTep || 'image/jpeg', Number(sub.dungLuongBytes || 1024)]
+    );
+    const tepId = Number(ins.rows[0].ma_tep_dinh_kem);
+    await prisma.anhTonThuongMoRong.update({ where: { id: sub.id }, data: { maTepDinhKemGoc: BigInt(tepId), maHoSo: BigInt(targetHoSo) } }).catch(() => null);
+    return { id: tepId, url: sub.publicUrl };
   }
 
   async createLesionPhoto(user, data = {}) {
@@ -1927,13 +2361,22 @@ class PatientFlowService {
 
     if (episodeId) {
       const epRes = await db.query('SELECT ma_benh_nhan, ma_ho_so_man FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [parseInt(episodeId, 10)]);
-      if (!epRes.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${episodeId}`, 3007, 404);
+      if (!epRes.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${episodeId}`, 7001, 404);
       await patientService.assertPatientAccess(user, epRes.rows[0].ma_benh_nhan);
       if (!maHoSo && epRes.rows[0].ma_ho_so_man) maHoSo = Number(epRes.rows[0].ma_ho_so_man);
+      if (!maHoSo) {
+        const epMeta = await prisma.lesionEpisodeMeta.findUnique({ where: { maDotTonThuong: BigInt(parseInt(episodeId, 10)) } }).catch(() => null);
+        if (epMeta?.maHoSo) maHoSo = Number(epMeta.maHoSo);
+      }
     }
 
-    // Nếu chưa có ma_tep_dinh_kem (FK NOT NULL trong anhchuptonthuong) nhưng có url + maHoSo, tự tạo tepdinhkem
-    if (!maTepDinhKem && maHoSo && (data.url || data.public_url || data.image_url || data.storage_path)) {
+    let resolvedUrl = null;
+    if (maTepDinhKem) {
+      const synced = await this._resolveOrSyncTepDinhKemId(maTepDinhKem, maHoSo, user);
+      if (!synced) throw createAppError(`Không tìm thấy tệp đính kèm #${maTepDinhKem}`, 6005, 404);
+      maTepDinhKem = synced.id;
+      resolvedUrl = synced.url;
+    } else if (maHoSo && (data.url || data.public_url || data.image_url || data.storage_path)) {
       const urlVal = data.public_url || data.url || data.image_url || '';
       const storagePath = data.storage_path || urlVal;
       const tepIns = await db.query(
@@ -1942,30 +2385,27 @@ class PatientFlowService {
         [maHoSo, user.ma_tai_khoan, data.file_name || 'lesion.jpg', storagePath, urlVal, 'image/jpeg', 1024]
       );
       maTepDinhKem = Number(tepIns.rows[0].ma_tep_dinh_kem);
+      resolvedUrl = urlVal;
     }
 
     if (!maTepDinhKem) {
-      throw createAppError('Cần cung cấp attachment_id (ma_tep_dinh_kem) từ bước upload ảnh', 2001, 400);
-    }
-
-    const tepRes = await db.query('SELECT duong_dan_url FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [maTepDinhKem]);
-    if (!tepRes.rows[0]) {
-      throw createAppError(`Không tìm thấy tệp đính kèm #${maTepDinhKem}`, 3007, 404);
+      throw createAppError('Cần cung cấp attachment_id từ bước upload ảnh', 2001, 400);
     }
 
     const clamp010 = (v) => (v === undefined || v === null ? null : Math.min(10, Math.max(0, parseInt(v, 10) || 0)));
+    const localAuasVal = data.local_auas !== undefined && data.local_auas !== null ? Number(data.local_auas) : null;
 
     const res = await db.query(
       `INSERT INTO public.anhchuptonthuong (
         ma_tep_dinh_kem, ma_dot_ton_thuong_da, ma_vi_tri_ton_thuong, thoi_diem_chup,
-        moc_tien_trien, diem_ngua_nrs, diem_dau_nrs, diem_bong_rat_nrs, so_luong_not_san, url_anh
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        moc_tien_trien, diem_ngua_nrs, diem_dau_nrs, diem_bong_rat_nrs, so_luong_not_san, chi_so_auas_cuc_bo, url_anh
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         maTepDinhKem,
         episodeId ? parseInt(episodeId, 10) : null,
         locationId ? parseInt(locationId, 10) : null,
-        data.thoi_diem_chup || data.captured_at || new Date(),
+        data.thoi_diem_chup || data.taken_at || data.captured_at || new Date(),
         data.moc_tien_trien || data.milestone || null,
         clamp010(data.diem_ngua_nrs ?? data.itch_score_nrs ?? data.itch_score),
         clamp010(data.diem_dau_nrs ?? data.pain_score_nrs ?? data.pain_score),
@@ -1973,18 +2413,22 @@ class PatientFlowService {
         (data.so_luong_not_san ?? data.hives_count) !== undefined && (data.so_luong_not_san ?? data.hives_count) !== null
           ? Math.max(0, parseInt(data.so_luong_not_san ?? data.hives_count, 10))
           : null,
-        data.url_anh || data.url || data.image_url || tepRes.rows[0].duong_dan_url || null,
+        localAuasVal,
+        data.url_anh || data.url || data.image_url || resolvedUrl || null,
       ]
     );
 
     const row = res.rows[0];
-    return {
-      ...row,
-      ma_anh: Number(row.ma_anh),
-      ma_tep_dinh_kem: Number(row.ma_tep_dinh_kem),
-      ma_dot_ton_thuong_da: row.ma_dot_ton_thuong_da ? Number(row.ma_dot_ton_thuong_da) : null,
-      ma_vi_tri_ton_thuong: row.ma_vi_tri_ton_thuong ? Number(row.ma_vi_tri_ton_thuong) : null,
-    };
+    const annotatedUrl = data.annotated_url || null;
+    if (annotatedUrl !== null) {
+      await prisma.lesionPhotoMeta.upsert({
+        where: { maAnh: BigInt(row.ma_anh) },
+        create: { maAnh: BigInt(row.ma_anh), annotatedUrl },
+        update: { annotatedUrl },
+      }).catch(() => null);
+    }
+
+    return this._formatLesionPhoto(row, annotatedUrl);
   }
 
   async updateLesionPhotoMilestone(user, photoId, data = {}) {
@@ -1998,7 +2442,7 @@ class PatientFlowService {
        WHERE a.ma_anh = $1 LIMIT 1`,
       [pid]
     );
-    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh tổn thương #${pid}`, 3007, 404);
+    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 7003, 404);
     const ownerPid = chk.rows[0].hoso_benh_nhan || chk.rows[0].dot_benh_nhan;
     if (ownerPid) await patientService.assertPatientAccess(user, ownerPid);
 
@@ -2020,21 +2464,27 @@ class PatientFlowService {
     if (burn !== undefined) addSet('diem_bong_rat_nrs', clamp010(burn));
     const hives = data.so_luong_not_san ?? data.hives_count;
     if (hives !== undefined) addSet('so_luong_not_san', hives === null ? null : Math.max(0, parseInt(hives, 10)));
+    if (data.local_auas !== undefined) addSet('chi_so_auas_cuc_bo', data.local_auas === null ? null : Number(data.local_auas));
 
-    if (sets.length === 0) return { ...chk.rows[0], ma_anh: Number(chk.rows[0].ma_anh) };
-    params.push(pid);
-    const upd = await db.query(
-      `UPDATE public.anhchuptonthuong SET ${sets.join(', ')}, thoi_diem_cap_nhat = CURRENT_TIMESTAMP WHERE ma_anh = $${params.length} RETURNING *`,
-      params
-    );
-    const row = upd.rows[0];
-    return {
-      ...row,
-      ma_anh: Number(row.ma_anh),
-      ma_tep_dinh_kem: Number(row.ma_tep_dinh_kem),
-      ma_dot_ton_thuong_da: row.ma_dot_ton_thuong_da ? Number(row.ma_dot_ton_thuong_da) : null,
-      ma_vi_tri_ton_thuong: row.ma_vi_tri_ton_thuong ? Number(row.ma_vi_tri_ton_thuong) : null,
-    };
+    let row = chk.rows[0];
+    if (sets.length > 0) {
+      params.push(pid);
+      const upd = await db.query(
+        `UPDATE public.anhchuptonthuong SET ${sets.join(', ')}, thoi_diem_cap_nhat = CURRENT_TIMESTAMP WHERE ma_anh = $${params.length} RETURNING *`,
+        params
+      );
+      row = upd.rows[0];
+    }
+
+    if (data.annotated_url !== undefined) {
+      await prisma.lesionPhotoMeta.upsert({
+        where: { maAnh: BigInt(pid) },
+        create: { maAnh: BigInt(pid), annotatedUrl: data.annotated_url },
+        update: { annotatedUrl: data.annotated_url },
+      }).catch(() => null);
+    }
+    const meta = await prisma.lesionPhotoMeta.findUnique({ where: { maAnh: BigInt(pid) } }).catch(() => null);
+    return this._formatLesionPhoto(row, meta?.annotatedUrl ?? null);
   }
 
   async getLesionPhotos(user, queryParams = {}) {
@@ -2076,12 +2526,23 @@ class PatientFlowService {
        LIMIT 100`,
       params
     );
-    return res.rows.map((r) => ({
-      ...r,
-      ma_anh: Number(r.ma_anh),
-      ma_tep_dinh_kem: Number(r.ma_tep_dinh_kem),
-      ma_ho_so: Number(r.ma_ho_so),
-    }));
+
+    const pids = res.rows.map((r) => BigInt(r.ma_anh));
+    const metas = pids.length
+      ? await prisma.lesionPhotoMeta.findMany({ where: { maAnh: { in: pids } } }).catch(() => [])
+      : [];
+    const metaMap = new Map(metas.map((m) => [Number(m.maAnh), m]));
+
+    return res.rows.map((r) => {
+      const base = this._formatLesionPhoto(r, metaMap.get(Number(r.ma_anh))?.annotatedUrl ?? null);
+      return {
+        ...base,
+        attachment: {
+          attachment_id: String(r.ma_tep_dinh_kem),
+          file_url: r.duong_dan_url || r.url_anh || null,
+        },
+      };
+    });
   }
 
   async deleteLesionPhoto(user, photoId) {
@@ -2094,10 +2555,11 @@ class PatientFlowService {
        WHERE a.ma_anh = $1 LIMIT 1`,
       [pid]
     );
-    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh tổn thương #${pid}`, 3007, 404);
+    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 7003, 404);
     await patientService.assertPatientAccess(user, chk.rows[0].ma_benh_nhan);
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_anh = $1', [pid]);
-    return { ma_anh: pid, deleted: true };
+    await prisma.lesionPhotoMeta.deleteMany({ where: { maAnh: BigInt(pid) } }).catch(() => null);
+    return {};
   }
 
   // Answer Images (Sub DB)
@@ -2118,10 +2580,17 @@ class PatientFlowService {
     }
     await this._getRecordOrThrow(rid, user);
 
-    let aid = data.attachment_id || data.ma_tep_dinh_kem ? parseInt(data.attachment_id || data.ma_tep_dinh_kem, 10) : NaN;
+    let rawAid = data.attachment_id || data.ma_tep_dinh_kem;
+    let aid = rawAid ? parseInt(rawAid, 10) : NaN;
     let publicUrl = data.public_url || data.image_url || data.url || null;
 
-    if (Number.isNaN(aid) && publicUrl) {
+    if (!Number.isNaN(aid)) {
+      const synced = await this._resolveOrSyncTepDinhKemId(aid, rid, user);
+      if (synced) {
+        aid = synced.id;
+        if (!publicUrl) publicUrl = synced.url;
+      }
+    } else if (publicUrl) {
       const tepIns = await db.query(
         `INSERT INTO public.tepdinhkem (ma_ho_so, ma_tai_khoan, ten_tep_goc, duong_dan_luu_tru, duong_dan_url, dinh_dang_tep, dung_luong_byte)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ma_tep_dinh_kem`,
@@ -2131,28 +2600,43 @@ class PatientFlowService {
     }
 
     if (Number.isNaN(aid)) {
-      throw createAppError('Thiếu attachment_id (ma_tep_dinh_kem) hoặc image_url', 2001, 400);
+      throw createAppError('Thiếu attachment_id hoặc image_url', 2001, 400);
     }
 
-    if (!publicUrl) {
-      const tep = await db.query('SELECT duong_dan_url FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [aid]);
-      publicUrl = tep.rows[0]?.duong_dan_url || null;
-    }
-
+    const optVal = data.option_value !== undefined ? (data.option_value !== null ? String(data.option_value) : null) : null;
     const created = await prisma.answerImage.upsert({
       where: { maHoSo_questionId_attachmentId: { maHoSo: BigInt(rid), questionId: qid, attachmentId: BigInt(aid) } },
-      create: { maHoSo: BigInt(rid), questionId: qid, attachmentId: BigInt(aid), publicUrl },
-      update: { publicUrl },
+      create: { maHoSo: BigInt(rid), questionId: qid, attachmentId: BigInt(aid), publicUrl, optionValue: optVal },
+      update: { publicUrl, optionValue: optVal ?? undefined },
     });
+
     return {
-      id: created.id,
-      answer_id: !Number.isNaN(answerId) ? answerId : null,
-      ma_ho_so: Number(created.maHoSo),
-      question_id: created.questionId,
-      attachment_id: Number(created.attachmentId),
-      public_url: created.publicUrl,
-      option_value: data.option_value || null,
+      id: String(created.id),
+      answer_id: !Number.isNaN(answerId) ? String(answerId) : String(created.questionId),
+      attachment_id: String(created.attachmentId),
+      option_value: created.optionValue ?? null,
+      created_at: created.createdAt.toISOString(),
     };
+  }
+
+  async attachAnswerImagesBulk(user, data = {}) {
+    const answerId = data.answer_id;
+    const list = Array.isArray(data.attachments) ? data.attachments : [];
+    if (!answerId || list.length === 0) {
+      throw createAppError('Thiếu answer_id hoặc mảng attachments', 2001, 400);
+    }
+    const saved = [];
+    for (const item of list) {
+      const attId = typeof item === 'object' ? item.attachment_id : item;
+      const optVal = typeof item === 'object' ? item.option_value : undefined;
+      const res = await this.attachAnswerImage(user, { answer_id: answerId, attachment_id: attId, option_value: optVal });
+      saved.push({
+        id: res.id,
+        answer_id: res.answer_id,
+        attachment_id: parseInt(res.attachment_id, 10) || res.attachment_id,
+      });
+    }
+    return { total: String(saved.length), data: saved };
   }
 
   async getAnswerImages(user, queryParams = {}) {
@@ -2173,14 +2657,25 @@ class PatientFlowService {
     const where = { maHoSo: BigInt(rid) };
     if (!Number.isNaN(qid)) where.questionId = qid;
     const rows = await prisma.answerImage.findMany({ where, orderBy: { id: 'desc' } });
-    return rows.map((r) => ({
-      id: r.id,
-      answer_id: !Number.isNaN(answerId) ? answerId : null,
-      ma_ho_so: Number(r.maHoSo),
-      question_id: r.questionId,
-      attachment_id: Number(r.attachmentId),
-      public_url: r.publicUrl,
-    }));
+
+    const attIds = rows.map((r) => Number(r.attachmentId));
+    const tepRes = attIds.length
+      ? await db.query('SELECT ma_tep_dinh_kem, ten_tep_goc, duong_dan_url FROM public.tepdinhkem WHERE ma_tep_dinh_kem = ANY($1)', [attIds])
+      : { rows: [] };
+    const tepMap = new Map(tepRes.rows.map((t) => [Number(t.ma_tep_dinh_kem), t]));
+
+    return rows.map((r) => {
+      const t = tepMap.get(Number(r.attachmentId));
+      return {
+        id: String(r.id),
+        option_value: r.optionValue ?? null,
+        attachment: {
+          attachment_id: String(r.attachmentId),
+          file_url: r.publicUrl || t?.duong_dan_url || null,
+          file_name: t?.ten_tep_goc || 'image.jpg',
+        },
+      };
+    });
   }
 
   async deleteAnswerImage(user, answerImageId) {
@@ -2189,7 +2684,7 @@ class PatientFlowService {
     if (!existing) throw createAppError(`Không tìm thấy liên kết ảnh #${id}`, 3007, 404);
     await this._getRecordOrThrow(Number(existing.maHoSo), user);
     await prisma.answerImage.delete({ where: { id } });
-    return { id, deleted: true };
+    return {};
   }
 }
 

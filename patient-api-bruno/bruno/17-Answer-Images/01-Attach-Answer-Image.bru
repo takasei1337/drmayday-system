@@ -1,5 +1,5 @@
 meta {
-  name: 01. Gắn ảnh vào câu trả lời (POST /answer-images)
+  name: 01. Gắn 1 ảnh vào câu trả lời (Sheet POST /answer-images)
   type: http
   seq: 1
 }
@@ -28,5 +28,17 @@ body:json {
 
 script:post-response {
   const b = res.getBody();
-  if (b && b.data && b.data.id) { bru.setEnvVar("answerImageId", String(b.data.id)); console.log("🔗 Đã lưu {{answerImageId}} =", b.data.id); }
+  if (b && b.data && b.data.id) bru.setEnvVar("answerImageId", String(b.data.id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["answer_id","attachment_id","created_at","id","option_value"]);
+  });
 }

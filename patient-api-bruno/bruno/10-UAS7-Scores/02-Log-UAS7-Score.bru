@@ -1,5 +1,5 @@
 meta {
-  name: 02. Chấm điểm UAS7 hàng ngày (POST /uas7-scores)
+  name: 02. Gửi điểm UAS7 hằng ngày (Sheet POST /uas7-scores)
   type: http
   seq: 2
 }
@@ -21,9 +21,23 @@ headers {
 body:json {
   {
     "medical_record_id": "{{recordId}}",
-    "score_date": "2026-11-13",
+    "score_date": "2026-11-18",
     "iss7": "2",
-    "hss7": "2",
+    "hss7": "1",
     "note": "Ngứa nhẹ buổi tối"
   }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("array");
+    if (body.data.length > 0) {
+      expect(Object.keys(body.data[0]).sort(), "data[0]").to.eql(["created_at","daily_score","hss7","iss7","medical_record_id","note","patient_id","score_date","updated_at"]);
+    }
+  });
 }

@@ -1,5 +1,5 @@
 meta {
-  name: 04. Đăng nhập Admin (POST /auth/login)
+  name: 04. Đăng nhập Admin (Sheet 1.2 POST /auth/login)
   type: http
   seq: 4
 }
@@ -28,9 +28,19 @@ script:pre-request {
 
 script:post-response {
   const b = res.getBody();
-  const token = b && b.data && (b.data.access_token || b.data.token);
-  if (res.getStatus() === 200 && token) {
-    bru.setEnvVar("adminToken", token);
-    console.log("✅ Đã lưu {{adminToken}}");
-  }
+  if (res.getStatus() === 200 && b && b.data && b.data.token) bru.setEnvVar("adminToken", b.data.token);
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["token","user_info"]);
+    expect(body.data.user_info).to.be.an("object");
+    expect(Object.keys(body.data.user_info).sort(), "user_info").to.eql(["full_name","phone","role_id","user_id"]);
+  });
 }

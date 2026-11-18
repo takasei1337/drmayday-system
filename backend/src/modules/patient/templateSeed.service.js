@@ -235,11 +235,15 @@ const CODE_ALIAS_MAP = {
   TAI_KHAM: 'TMPL_URTICARIA_FOLLOWUP',
 };
 
-async function listTemplates() {
+async function listTemplates(query = {}) {
   await ensureDefaultTemplatesSeeded();
+  const page = Math.max(1, parseInt(query.page || 1, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit || 50, 10) || 50));
   return prisma.template.findMany({
     where: { isActive: true },
     orderBy: { id: 'asc' },
+    skip: (page - 1) * limit,
+    take: limit,
     include: {
       sections: {
         orderBy: { orderIndex: 'asc' },
@@ -249,6 +253,46 @@ async function listTemplates() {
       },
     },
   });
+}
+
+function formatTemplateListItem(t) {
+  return {
+    code_template: t.codeTemplate,
+    name: t.title,
+    description: t.description ?? null,
+    version: String(t.version ?? 1),
+    is_active: t.isActive ? '1' : '0',
+    created_at: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+  };
+}
+
+function formatTemplateDetail(t) {
+  return {
+    code_template: t.codeTemplate,
+    name: t.title,
+    sections: (t.sections || []).map((s) => ({
+      section_id: String(s.id),
+      title: s.sectionName,
+      questions: (s.questions || []).map((q) => {
+        const opts = Array.isArray(q.options) ? q.options : [];
+        return {
+          question_id: q.questionCode || String(q.id),
+          question_text: q.questionText,
+          type_question: String(q.questionType || 'text').toLowerCase(),
+          options: opts.map((opt, idx) => {
+            if (typeof opt === 'string') {
+              return { id: String(idx + 1), option_text: opt, option_value: opt };
+            }
+            return {
+              id: String(opt.id || idx + 1),
+              option_text: opt.option_text || opt.label || String(opt.value || ''),
+              option_value: opt.option_value || opt.value || opt.label || '',
+            };
+          }),
+        };
+      }),
+    })),
+  };
 }
 
 async function getTemplateByIdOrCode(idOrCode) {
@@ -289,6 +333,8 @@ module.exports = {
   ensureDefaultTemplatesSeeded,
   listTemplates,
   getTemplateByIdOrCode,
+  formatTemplateListItem,
+  formatTemplateDetail,
   CODE_ALIAS_MAP,
 };
 

@@ -1,5 +1,5 @@
 meta {
-  name: 02. Cập nhật hồ sơ cá nhân bệnh nhân (PUT /profile)
+  name: 02. Cập nhật hồ sơ cá nhân (Sheet PUT /profile)
   type: http
   seq: 2
 }
@@ -21,19 +21,29 @@ headers {
 body:json {
   {
     "full_name": "Nguyễn Văn Bệnh Nhân",
-    "gender": "Nam",
-    "ngay_sinh": "1995-05-20",
+    "gender": "male",
+    "year_of_birth": 1995,
     "career": "student",
     "ethnic": "Kinh",
     "hamlet_address": "Số 1 Đại Cồ Việt",
     "commune_address": "Bách Khoa",
     "city_address": "Hà Nội",
+    "work_place": "Đại học Bách Khoa Hà Nội",
     "health_insurance_number": "DN4012345678901",
     "health_insurance_validate": "2027-12-31",
     "next_of_kin_name": "Nguyễn Thị Người Nhà",
-    "next_of_kin_phone": "0988777666",
-    "next_of_kin_relationship": "Mẹ",
-    "medical_history": "Viêm mũi dị ứng",
-    "allergy_history": "Hải sản"
+    "next_of_kin_phone": "0988777666"
   }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["career","city_address","commune_address","ethnic","first_visit","full_name","gender","hamlet_address","health_insurance_number","health_insurance_validate","next_of_kin_name","next_of_kin_phone","phone","role_id","user_id","work_place","year_of_birth"]);
+  });
 }

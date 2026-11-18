@@ -1,0 +1,38 @@
+meta {
+  name: 12. Bác sĩ kết luận/cập nhật bệnh án (Sheet PUT /medical_records/:id)
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/medical_records/{{recordId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "completed",
+    "instructions": "Mày đay mạn tính tự phát đáp ứng tốt thuốc kháng Histamin H1"
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["assigned_doctor_id","completed_at","created_by","instructions","medical_record_id","patient_id","status","template_id","updated_at"]);
+  });
+}

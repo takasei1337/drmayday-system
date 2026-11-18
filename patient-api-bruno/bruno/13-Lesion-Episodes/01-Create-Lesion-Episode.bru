@@ -1,5 +1,5 @@
 meta {
-  name: 01. Tạo đợt tổn thương da (POST /lesion-episodes)
+  name: 01. Tạo đợt tổn thương (Sheet POST /lesion-episodes)
   type: http
   seq: 1
 }
@@ -21,16 +21,30 @@ headers {
 body:json {
   {
     "medical_record_id": "{{recordId}}",
-    "name": "Đợt bùng phát buổi tối 13/11",
-    "occurred_at": "2026-11-13 20:00:00",
+    "name": "Đợt bùng phát buổi tối",
+    "occurred_at": "2026-11-18 20:00:00",
     "context_tags": "[\"sau ăn\"]",
+    "context_other": "Ăn hải sản",
     "medication_name": "Desloratadine 5mg",
+    "medication_taken_ago": "2",
+    "medication_unit": "hour",
     "description": "Nổi mảng sẩn vùng cánh tay"
   }
 }
 
 script:post-response {
   const b = res.getBody();
-  const eid = b && b.data && (b.data.ma_dot_ton_thuong_da || b.data.episode_id);
-  if (eid) { bru.setEnvVar("episodeId", String(eid)); console.log("🔴 Đã lưu {{episodeId}} =", eid); }
+  if (b && b.data && b.data.episode_id) bru.setEnvVar("episodeId", String(b.data.episode_id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["context_other","context_tags","created_at","description","episode_id","medical_record_id","medication_name","medication_taken_ago","medication_unit","name","occurred_at","patient_id","updated_at"]);
+  });
 }

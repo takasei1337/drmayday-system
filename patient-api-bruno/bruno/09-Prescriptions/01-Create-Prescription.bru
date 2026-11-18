@@ -1,5 +1,5 @@
 meta {
-  name: 01. Kê đơn thuốc (POST /prescriptions)
+  name: 01. Bác sĩ kê đơn thuốc (Sheet POST /prescriptions)
   type: http
   seq: 1
 }
@@ -20,14 +20,30 @@ headers {
 
 body:json {
   {
-    "ma_ho_so": "{{recordId}}",
-    "ghi_chu_dieu_tri": "Uống 1 viên buổi tối trước khi ngủ",
+    "medical_record_id": "{{recordId}}",
+    "note": "Uống tối trước khi ngủ",
     "items": [
       {
-        "ten_thuoc_bo_sung": "Cetirizine 10mg",
-        "lieu_dung": "1 viên/tối",
-        "thoi_gian_dung": "14 ngày"
+        "medicine_name": "Cetirizine",
+        "dosage": "10mg",
+        "frequency": "1 lần/ngày",
+        "duration": "7 ngày",
+        "instruction": "Uống sau ăn tối"
       }
     ]
   }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["created_at","created_by","items","medical_record_id","note","prescription_id"]);
+    expect(body.data.items).to.be.an("array").and.have.length.above(0);
+    expect(Object.keys(body.data.items[0]).sort(), "items[0]").to.eql(["dosage","duration","frequency","instruction","medicine_name","prescription_item_id"]);
+  });
 }

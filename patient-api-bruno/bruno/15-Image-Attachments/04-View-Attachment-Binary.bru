@@ -1,0 +1,18 @@
+meta {
+  name: 04. Xem luồng ảnh binary (Sheet GET /image-attachments/view/:id)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/image-attachments/view/{{attachmentId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status 200 & binary image", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(String(res.getHeader("content-type") || "")).to.include("image/");
+  });
+}

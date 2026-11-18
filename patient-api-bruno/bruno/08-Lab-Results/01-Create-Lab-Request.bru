@@ -1,0 +1,46 @@
+meta {
+  name: 01. Tạo yêu cầu xét nghiệm (Sheet POST /lab-requests)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/lab-requests
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "medical_record_id": "{{recordId}}",
+    "note": "Chỉ định xét nghiệm thường quy mày đay mạn",
+    "items": [
+      {
+        "test_name": "Công thức máu",
+        "description": "Đánh giá bạch cầu ái toan"
+      }
+    ]
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["created_at","id","items","medical_record_id","note","requested_by","status"]);
+    expect(body.data.items).to.be.an("array").and.have.length.above(0);
+    expect(Object.keys(body.data.items[0]).sort(), "items[0]").to.eql(["description","id","test_name"]);
+  });
+}

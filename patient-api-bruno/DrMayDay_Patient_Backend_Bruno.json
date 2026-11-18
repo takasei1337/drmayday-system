@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "DrMayDay - Patient Backend API Test (GET/POST/PUT/PATCH/DELETE)",
-    "description": "Bộ API kiểm thử phân hệ Bệnh nhân (drmayday-system Dual-DB: Main DB PostgreSQL + Sub DB Supabase Prisma + Supabase Storage mayday-attachments). Import trực tiếp vào Bruno (Import Collection -> Postman Collection).",
+    "name": "DrMayDay - Patient Backend API Test (GoogleSheet Strict)",
+    "description": "Bộ kiểm thử API Phân hệ Bệnh nhân chuẩn 100% theo từng sheet trong GoogleSheets_APIs.xlsx (y hệt field trả về, không thừa, không thiếu).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -30,15 +30,15 @@
       "value": "Doctor@123"
     },
     {
-      "key": "patientUser",
+      "key": "testPatientUser",
       "value": "0912345678"
     },
     {
-      "key": "patientPassword",
+      "key": "testPatientPassword",
       "value": "Patient@123"
     },
     {
-      "key": "newPatientPhone",
+      "key": "testPatientPhone",
       "value": "0912999888"
     },
     {
@@ -66,6 +66,10 @@
       "value": "1"
     },
     {
+      "key": "answerId",
+      "value": "1"
+    },
+    {
       "key": "episodeId",
       "value": "1"
     },
@@ -82,10 +86,6 @@
       "value": "1"
     },
     {
-      "key": "answerId",
-      "value": "1"
-    },
-    {
       "key": "answerImageId",
       "value": "1"
     },
@@ -96,30 +96,26 @@
   ],
   "item": [
     {
-      "name": "00. Health & Auth (Slide 2 - Đã fix Dual-DB)",
+      "name": "00. Health Check",
       "item": [
         {
-          "name": "00.1 Health Check (GET /health)",
+          "name": "01. Health Check (GET /health)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{rootUrl}}/health",
-              "host": [
-                "{{rootUrl}}"
-              ],
-              "path": [
-                "health"
-              ]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "description": "Kiểm tra server Backend đang hoạt động"
-          }
-        },
+              "raw": "{{rootUrl}}/health"
+            }
+          },
+          "event": []
+        }
+      ]
+    },
+    {
+      "name": "01. Auth (Sheet 1.1 - 1.5)",
+      "item": [
         {
-          "name": "00.2 Đăng ký Bệnh nhân mới (POST signup)",
+          "name": "01. Đăng ký Bệnh nhân mới (Sheet 1.1 POST /auth/signup)",
           "request": {
             "method": "POST",
             "header": [
@@ -129,27 +125,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/signup",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "signup"
-              ]
-            },
-            "description": "Slide 2 / Sheet 1.1 signup. Lưu ý: DB final_restructured.sql chỉ nhận gioi_tinh IN ('Nam', 'Nu').",
-            "auth": {
-              "type": "noauth"
+              "raw": "{{baseUrl}}/auth/signup"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"full_name\": \"Nguyễn Văn Test Bệnh Nhân\",\n  \"phone\": \"{{newPatientPhone}}\",\n  \"password\": \"{{patientPassword}}\",\n  \"gender\": \"Nam\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"full_name\": \"Nguyễn Văn Test Bệnh Nhân\",\n  \"phone\": \"{{testPatientPhone}}\",\n  \"password\": \"{{testPatientPassword}}\",\n  \"gender\": \"male\"\n}"
             }
           },
           "event": [
@@ -160,522 +140,233 @@
                 "exec": [
                   "const rand = Math.floor(10000000 + Math.random() * 90000000);",
                   "const phone = \"09\" + rand;",
-                  "pm.collectionVariables.set(\"newPatientPhone\", phone);",
-                  "pm.collectionVariables.set(\"patientUser\", phone);"
+                  "pm.collectionVariables.set(\"testPatientPhone\", phone);",
+                  "pm.collectionVariables.set(\"testPatientUser\", phone);",
+                  "if (!pm.collectionVariables.get(\"testPatientPassword\")) { pm.collectionVariables.set(\"testPatientPassword\", \"Patient@123\"); }"
                 ]
               }
-            }
-          ]
-        },
-        {
-          "name": "00.3 Đăng nhập Bệnh nhân (POST login)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
             },
-            "description": "Đăng nhập lấy patientToken tự động lưu vào biến",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"{{patientUser}}\",\n  \"password\": \"{{patientPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const body = pm.response.json();",
-                  "const token = body && body.data && (body.data.access_token || body.data.token);",
-                  "if (token) { pm.collectionVariables.set(\"patientToken\", token); }",
-                  "const u = body && body.data && body.data.user_info;",
-                  "const pid = u && (u.ma_benh_nhan || u.ma_nguoi || u.user_id || u.id);",
-                  "if (pid) { pm.collectionVariables.set(\"patientId\", String(pid)); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "00.4 Đăng nhập Bác sĩ (POST login)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Đăng nhập Bác sĩ (0901000002 / Doctor@123) để test API cần quyền BAC_SI",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"{{doctorUser}}\",\n  \"password\": \"{{doctorPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const body = pm.response.json();",
-                  "const token = body && body.data && (body.data.access_token || body.data.token);",
-                  "if (token) { pm.collectionVariables.set(\"doctorToken\", token); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "00.5 Đăng nhập Admin (POST login)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Đăng nhập Admin (0900000001 / Admin@123) để test API cần quyền ADMIN",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const body = pm.response.json();",
-                  "const token = body && body.data && (body.data.access_token || body.data.token);",
-                  "if (token) { pm.collectionVariables.set(\"adminToken\", token); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "00.6 Lấy thông tin tài khoản hiện tại (GET /auth/me)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "me"
-              ]
-            },
-            "description": "",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "00.7 Quên mật khẩu (POST /auth/forgot-password)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/forgot-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "forgot-password"
-              ]
-            },
-            "description": "",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phone\": \"{{patientUser}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "00.8 Đổi mật khẩu (POST /auth/change-password)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/change-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "change-password"
-              ]
-            },
-            "description": "",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"old_password\": \"{{patientPassword}}\",\n  \"new_password\": \"{{patientPassword}}\",\n  \"confirm_password\": \"{{patientPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "00.9 Đăng xuất (POST /auth/logout)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/auth/logout",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
-            },
-            "description": "Đưa token hiện tại vào token_blacklist trên Sub DB Supabase",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "01. Patient Module (drmayday-system - Đã fix Dual-DB & RBAC)",
-      "item": [
-        {
-          "name": "01.1 Lấy danh sách bệnh nhân (GET /patients)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/patients?limit=10&offset=0",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients"
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "10"
-                },
-                {
-                  "key": "offset",
-                  "value": "0"
-                }
-              ]
-            },
-            "description": "Route hiện có trong drmayday-system. Cảnh báo: đang query sai tên cột (ho_va_ten, ma_dinh_danh_y_te, nhom_mau, dia_chi_hien_tai, bn.ma_nguoi) và chặn BENH_NHAN.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "01.2 Lấy danh sách bệnh nhân alias (GET /patients/benh-nhan)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/patients/benh-nhan?limit=10&offset=0",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "benh-nhan"
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "10"
-                },
-                {
-                  "key": "offset",
-                  "value": "0"
-                }
-              ]
-            },
-            "description": "",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "01.3 Lấy hồ sơ bệnh án theo BN (GET /patients/benh-nhan/:id/ho-so)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/patients/benh-nhan/{{patientId}}/ho-so",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "benh-nhan",
-                "{{patientId}}",
-                "ho-so"
-              ]
-            },
-            "description": "Route hiện có trong drmayday-system. Cảnh báo: đang query sai cột ma_phong_kham và ngay_tao_ho_so.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "01.4 Tạo hồ sơ bệnh án (POST /patients/ho-so)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/patients/ho-so",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "ho-so"
-              ]
-            },
-            "description": "Route hiện có trong drmayday-system. Cảnh báo: đang insert cột không tồn tại và thiếu subtype benhanmaydaycap/man.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ma_benh_nhan\": \"{{patientId}}\",\n  \"loai_benh_an\": \"MAN\",\n  \"thoi_gian_khoi_phat_tuan\": 8,\n  \"chan_doan_ban_dau_phong_kham\": \"Mày đay mạn tính tự phát\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
                   "const b = pm.response.json();",
-                  "const rid = b && b.data && (b.data.ma_ho_so || b.data.medical_record_id);",
-                  "if (rid) { pm.collectionVariables.set(\"recordId\", String(rid)); }"
+                  "if ((pm.response.code === 200 || pm.response.code === 201) && b && b.data && b.data.user_id) {",
+                  "  pm.collectionVariables.set(\"patientId\", String(b.data.user_id));",
+                  "}",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"created_at\",\"full_name\",\"gender\",\"is_active\",\"phone\",\"role_id\",\"user_id\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "01.5 Lấy phiên khám theo hồ sơ (GET /patients/ho-so/:ma_ho_so/phien-kham)",
+          "name": "02. Đăng nhập Bệnh nhân (Sheet 1.2 POST /auth/login)",
           "request": {
-            "method": "GET",
-            "header": [],
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/patients/ho-so/{{recordId}}/phien-kham",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "ho-so",
-                "{{recordId}}",
-                "phien-kham"
-              ]
+              "raw": "{{baseUrl}}/auth/login"
             },
-            "description": "Route hiện có trong drmayday-system. Cảnh báo: đang ORDER BY thoi_diem_bat_dau_kham (không tồn tại trong phienkham).",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{testPatientUser}}\",\n  \"password\": \"{{testPatientPassword}}\"\n}"
             }
-          }
-        }
-      ]
-    },
-    {
-      "name": "02. Profile & Sàng lọc Báo động đỏ (Slide 2 & DB sanglocbaodongdo)",
-      "item": [
-        {
-          "name": "02.1 Xem hồ sơ cá nhân bệnh nhân (GET /profile)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "profile"
-              ]
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"testPatientUser\")) { pm.collectionVariables.set(\"testPatientUser\", \"0912345678\"); }",
+                  "if (!pm.collectionVariables.get(\"testPatientPassword\")) { pm.collectionVariables.set(\"testPatientPassword\", \"Patient@123\"); }"
+                ]
+              }
             },
-            "description": "Theo Slide 2 & Sheet GET apiprofile (chưa có trong drmayday-system)",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (pm.response.code === 200 && b && b.data && b.data.token) {",
+                  "  pm.collectionVariables.set(\"patientToken\", b.data.token);",
+                  "  if (b.data.user_info && b.data.user_info.user_id) pm.collectionVariables.set(\"patientId\", String(b.data.user_info.user_id));",
+                  "}",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"token\",\"user_info\"]);",
+                  "  pm.expect(body.data.user_info).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data.user_info).sort(), \"user_info\").to.eql([\"full_name\",\"phone\",\"role_id\",\"user_id\"]);",
+                  "});"
+                ]
+              }
             }
-          }
+          ]
         },
         {
-          "name": "02.2 Cập nhật hồ sơ cá nhân bệnh nhân (PUT /profile)",
+          "name": "03. Đăng nhập Bác sĩ (Sheet 1.2 POST /auth/login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{doctorUser}}\",\n  \"password\": \"{{doctorPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"doctorUser\")) { pm.collectionVariables.set(\"doctorUser\", \"0901000002\"); }",
+                  "if (!pm.collectionVariables.get(\"doctorPassword\")) { pm.collectionVariables.set(\"doctorPassword\", \"Doctor@123\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (pm.response.code === 200 && b && b.data && b.data.token) pm.collectionVariables.set(\"doctorToken\", b.data.token);",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"token\",\"user_info\"]);",
+                  "  pm.expect(body.data.user_info).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data.user_info).sort(), \"user_info\").to.eql([\"full_name\",\"phone\",\"role_id\",\"user_id\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Đăng nhập Admin (Sheet 1.2 POST /auth/login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminUser\")) { pm.collectionVariables.set(\"adminUser\", \"0900000001\"); }",
+                  "if (!pm.collectionVariables.get(\"adminPassword\")) { pm.collectionVariables.set(\"adminPassword\", \"Admin@123\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (pm.response.code === 200 && b && b.data && b.data.token) pm.collectionVariables.set(\"adminToken\", b.data.token);",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"token\",\"user_info\"]);",
+                  "  pm.expect(body.data.user_info).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data.user_info).sort(), \"user_info\").to.eql([\"full_name\",\"phone\",\"role_id\",\"user_id\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Quên mật khẩu (Sheet 1.4 POST /auth/forgot-password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{testPatientUser}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06. Đổi mật khẩu (Sheet 1.5 PUT /auth/change-password)",
           "request": {
             "method": "PUT",
             "header": [
@@ -685,15 +376,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "profile"
-              ]
+              "raw": "{{baseUrl}}/auth/change-password"
             },
-            "description": "Theo Slide 2 & Sheet PUT apiprofile (chưa có trong drmayday-system)",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -706,35 +390,36 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"full_name\": \"Nguyễn Văn Bệnh Nhân\",\n  \"gender\": \"Nam\",\n  \"ngay_sinh\": \"1995-05-20\",\n  \"career\": \"Can bo cong chuc\",\n  \"ethnic\": \"Kinh\",\n  \"hamlet_address\": \"Số 1 Đại Cồ Việt\",\n  \"commune_address\": \"Bách Khoa\",\n  \"city_address\": \"Hà Nội\",\n  \"health_insurance_number\": \"DN4012345678901\",\n  \"health_insurance_validate\": \"2027-12-31\",\n  \"next_of_kin_name\": \"Nguyễn Thị Người Nhà\",\n  \"next_of_kin_phone\": \"0988777666\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"old_password\": \"{{testPatientPassword}}\",\n  \"new_password\": \"{{testPatientPassword}}\",\n  \"confirm_password\": \"{{testPatientPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
               }
             }
-          }
+          ]
         },
         {
-          "name": "02.3 Sàng lọc báo động đỏ (POST /red-flag-screening)",
+          "name": "07. Đăng xuất (Sheet 1.3 POST /auth/logout)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/red-flag-screening",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "red-flag-screening"
-              ]
+              "raw": "{{baseUrl}}/auth/logout"
             },
-            "description": "Bảng public.sanglocbaodongdo trong final_restructured.sql (chưa có trong drmayday-system)",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -744,95 +429,73 @@
                   "type": "string"
                 }
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"co_kho_tho_kho_khe_nghen_hong\": false,\n  \"co_chong_mat_tuc_nguc_sap_ngat\": false,\n  \"co_sung_moi_luoi_co_hong\": false,\n  \"co_dau_bung_non_lien_tuc\": false\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
               }
             }
-          }
+          ]
         }
       ]
     },
     {
-      "name": "03. Bệnh nhân & Hồ sơ Bệnh án (Slide 5 & incomplete_api.md)",
+      "name": "02. Profile Bệnh Nhân (Sheet GET/PUT apiprofile)",
       "item": [
         {
-          "name": "03.1 Tìm kiếm bệnh nhân (GET /patients/search)",
+          "name": "01. Xem hồ sơ cá nhân (Sheet GET /profile)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/patients/search?keyword=0912&page=1&limit=10",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "search"
-              ],
-              "query": [
-                {
-                  "key": "keyword",
-                  "value": "0912"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "10"
-                }
-              ]
+              "raw": "{{baseUrl}}/profile"
             },
-            "description": "pat02 trong incomplete_api.md / docpat01 Slide 5",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{doctorToken}}",
+                  "value": "{{patientToken}}",
                   "type": "string"
                 }
               ]
             }
-          }
-        },
-        {
-          "name": "03.2 Chi tiết bệnh nhân (GET /patients/:id)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/patients/{{patientId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "{{patientId}}"
-              ]
-            },
-            "description": "pat03 trong incomplete_api.md",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"career\",\"city_address\",\"commune_address\",\"ethnic\",\"first_visit\",\"full_name\",\"gender\",\"hamlet_address\",\"health_insurance_number\",\"health_insurance_validate\",\"next_of_kin_name\",\"next_of_kin_phone\",\"phone\",\"role_id\",\"user_id\",\"work_place\",\"year_of_birth\"]);",
+                  "});"
+                ]
+              }
             }
-          }
+          ]
         },
         {
-          "name": "03.3 Cập nhật hành chính bệnh nhân (PUT /patients/:id)",
+          "name": "02. Cập nhật hồ sơ cá nhân (Sheet PUT /profile)",
           "request": {
             "method": "PUT",
             "header": [
@@ -842,16 +505,635 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/patients/{{patientId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "{{patientId}}"
+              "raw": "{{baseUrl}}/profile"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
               ]
             },
-            "description": "pat04 trong incomplete_api.md",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Nguyễn Văn Bệnh Nhân\",\n  \"gender\": \"male\",\n  \"year_of_birth\": 1995,\n  \"career\": \"student\",\n  \"ethnic\": \"Kinh\",\n  \"hamlet_address\": \"Số 1 Đại Cồ Việt\",\n  \"commune_address\": \"Bách Khoa\",\n  \"city_address\": \"Hà Nội\",\n  \"work_place\": \"Đại học Bách Khoa Hà Nội\",\n  \"health_insurance_number\": \"DN4012345678901\",\n  \"health_insurance_validate\": \"2027-12-31\",\n  \"next_of_kin_name\": \"Nguyễn Thị Người Nhà\",\n  \"next_of_kin_phone\": \"0988777666\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"career\",\"city_address\",\"commune_address\",\"ethnic\",\"first_visit\",\"full_name\",\"gender\",\"hamlet_address\",\"health_insurance_number\",\"health_insurance_validate\",\"next_of_kin_name\",\"next_of_kin_phone\",\"phone\",\"role_id\",\"user_id\",\"work_place\",\"year_of_birth\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06. Templates (Sheet GET apitemplatesall & apitemplatesid)",
+      "item": [
+        {
+          "name": "01. Danh sách mẫu phiếu (Sheet GET /templates/all)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/all?page=1&limit=10"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"code_template\",\"created_at\",\"description\",\"is_active\",\"name\",\"version\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Chi tiết biểu mẫu 4 tầng (Sheet GET /templates/:id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"code_template\",\"name\",\"sections\"]);",
+                  "  pm.expect(body.data.sections).to.be.an(\"array\");",
+                  "  if (body.data.sections.length > 0) {",
+                  "    const s = body.data.sections[0];",
+                  "    pm.expect(Object.keys(s).sort(), \"sections[0]\").to.eql([\"questions\",\"section_id\",\"title\"]);",
+                  "    if (s.questions.length > 0) {",
+                  "      const q = s.questions[0];",
+                  "      pm.expect(Object.keys(q).sort(), \"questions[0]\").to.eql([\"options\",\"question_id\",\"question_text\",\"type_question\"]);",
+                  "      if (q.options.length > 0) {",
+                  "        pm.expect(Object.keys(q.options[0]).sort(), \"options[0]\").to.eql([\"id\",\"option_text\",\"option_value\"]);",
+                  "      }",
+                  "    }",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. Hồ sơ Bệnh án (Sheet medical_records)",
+      "item": [
+        {
+          "name": "01. Lấy câu hỏi phân loại (Sheet GET /medical_records/classify-questions)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/classify-questions"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"options\",\"question_id\",\"question_text\",\"type_question\"]);",
+                  "    pm.expect(body.data[0].options).to.be.an(\"array\");",
+                  "    pm.expect(Object.keys(body.data[0].options[0]).sort(), \"options[0]\").to.eql([\"id\",\"option_text\",\"option_value\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Phân loại bệnh án (Sheet POST /medical_records/classify)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/classify"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"Q_DURATION_WEEKS\",\n      \"option_value\": \"GE_6_WEEKS\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"template_id\",\"template_name\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03. Tạo hồ sơ bệnh án (Sheet POST /medical_records)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"template_id\": \"{{templateId}}\",\n  \"answers\": [\n    {\n      \"question_id\": \"Q_ITCH_DURATION\",\n      \"answer_text\": \"Ngứa nhiều về đêm trên 6 tuần\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (b && b.data && b.data.medical_record_id) pm.collectionVariables.set(\"recordId\", String(b.data.medical_record_id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"assigned_doctor_id\",\"created_at\",\"created_by\",\"instructions\",\"medical_record_id\",\"patient_id\",\"status\",\"template_id\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Danh sách hồ sơ (Sheet GET /medical_records/all)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/all?page=1&limit=10"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"assigned_doctor_id\",\"created_at\",\"medical_record_id\",\"patient_id\",\"status\",\"template_id\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Lịch sử bệnh án theo BN (Sheet GET /medical_records/patients/:id/history)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/patients/{{patientId}}/history"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"created_at\",\"instructions\",\"medical_record_id\",\"status\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06. Chi tiết hồ sơ bệnh án (Sheet GET /medical_records/:id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"assigned_doctor_id\",\"completed_at\",\"created_at\",\"created_by\",\"instructions\",\"medical_record_id\",\"patient_id\",\"status\",\"template_id\",\"updated_at\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07. Tóm tắt hồ sơ bệnh án (Sheet GET /medical_records/:id/summary)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/summary"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"created_at\",\"medical_record_id\",\"patient_name\",\"status\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08. Cập nhật câu trả lời (Sheet PUT /medical_records/:id/answers)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/answers"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"Q_ITCH_DURATION\",\n      \"answer_text\": \"Ngứa nhiều về đêm trên 6 tuần\",\n      \"answer_value\": {\n        \"hours\": 24\n      }\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"count\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09. Thêm câu trả lời bổ sung (Sheet POST /medical_records/:id/answer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/answer"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"Q_RED_FLAG\",\n      \"answer_text\": \"Không khó thở\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"count\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Lấy câu trả lời bệnh án (Sheet GET /medical_records/:id/answers)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/answers"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (b && Array.isArray(b.data) && b.data[0] && b.data[0].id) pm.collectionVariables.set(\"answerId\", String(b.data[0].id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"answer_text\",\"answer_value\",\"answered_by\",\"created_at\",\"id\",\"medical_record_id\",\"question_id\",\"question_option_id\",\"updated_at\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Bác sĩ tiếp nhận hồ sơ (Sheet POST /medical_records/:id/accept)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/accept"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{doctorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"assigned_doctor_id\",\"medical_record_id\",\"status\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Bác sĩ kết luận/cập nhật bệnh án (Sheet PUT /medical_records/:id)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}"
+            },
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -864,123 +1146,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"dia_chi_tinh_tp\": \"Hà Nội\",\n  \"nghe_nghiep\": \"Khac\",\n  \"nguoi_nha_so_dien_thoai\": \"0988111222\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "03.4 Lấy câu hỏi phân loại bệnh án (GET medrec01)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/classify-questions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "classify-questions"
-              ]
-            },
-            "description": "Slide 5 medrec01",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "03.5 Phân loại bệnh án Cấp/Mạn (POST medrec02)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/classify",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "classify"
-              ]
-            },
-            "description": "Slide 5 medrec02",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"Q_DURATION_WEEKS\",\n      \"option_value\": \"GE_6_WEEKS\"\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "03.6 Tạo hồ sơ bệnh án mới (POST medrec03 / rec01)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records"
-              ]
-            },
-            "description": "Slide 5 medrec03 / incomplete_api.md rec01",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"template_id\": \"{{templateId}}\",\n  \"loai_benh_an\": \"MAN\",\n  \"thoi_gian_khoi_phat_tuan\": 8\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"status\": \"completed\",\n  \"instructions\": \"Mày đay mạn tính tự phát đáp ứng tốt thuốc kháng Histamin H1\"\n}"
             }
           },
           "event": [
@@ -989,635 +1155,22 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const b = pm.response.json();",
-                  "const rid = b && b.data && (b.data.ma_ho_so || b.data.medical_record_id);",
-                  "if (rid) { pm.collectionVariables.set(\"recordId\", String(rid)); }"
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"assigned_doctor_id\",\"completed_at\",\"created_by\",\"instructions\",\"medical_record_id\",\"patient_id\",\"status\",\"template_id\",\"updated_at\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "03.7 Xem lịch sử bệnh án của BN (GET medrec13 / rec02)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/patients/{{patientId}}/history",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "patients",
-                "{{patientId}}",
-                "history"
-              ]
-            },
-            "description": "Slide 5 medrec13",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "03.8 Xem chi tiết hồ sơ bệnh án (GET medrec05 / rec03)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/{{recordId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "{{recordId}}"
-              ]
-            },
-            "description": "Slide 5 medrec05",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "03.9 Xem tóm tắt hồ sơ bệnh án (GET medrec06)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/{{recordId}}/summary",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "{{recordId}}",
-                "summary"
-              ]
-            },
-            "description": "Slide 5 medrec06",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "03.10 Lấy câu trả lời trong phiếu khám (GET medrec08)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/{{recordId}}/answers",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "{{recordId}}",
-                "answers"
-              ]
-            },
-            "description": "Slide 5 medrec08",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const b = pm.response.json();",
-                  "const ans = b && b.data && Array.isArray(b.data.answers) && b.data.answers[0] && b.data.answers[0].id;",
-                  "if (ans) { pm.collectionVariables.set(\"answerId\", String(ans)); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "03.11 Cập nhật/Upsert câu trả lời phiếu khám (PUT medrec10)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/medical_records/{{recordId}}/answers",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "medical_records",
-                "{{recordId}}",
-                "answers"
-              ]
-            },
-            "description": "Slide 5 medrec10",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": \"Q_ITCH_DURATION\",\n      \"answer_text\": \"Ngứa nhiều về đêm trên 6 tuần\"\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const b = pm.response.json();",
-                  "const ans = b && b.data && Array.isArray(b.data.answers) && b.data.answers[0] && b.data.answers[0].id;",
-                  "if (ans) { pm.collectionVariables.set(\"answerId\", String(ans)); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "03.12 Đóng hồ sơ bệnh án (PUT rec04)",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/patients/medical-records/{{recordId}}/close",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "patients",
-                "medical-records",
-                "{{recordId}}",
-                "close"
-              ]
-            },
-            "description": "incomplete_api.md rec04",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{doctorToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "03.13 Xem chi tiết biểu mẫu 4 tầng (GET tmpl03)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/templates/{{templateId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "templates",
-                "{{templateId}}"
-              ]
-            },
-            "description": "Slide 11 tmpl03",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "04. Thang điểm UAS7 & Cận lâm sàng / Đơn thuốc (Slide 6 & 7)",
-      "item": [
-        {
-          "name": "04.1 Kiểm tra điều kiện chấm UAS7 (GET uas701)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/uas7-scores/eligibility",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "uas7-scores",
-                "eligibility"
-              ]
-            },
-            "description": "Slide 6 uas701",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "04.2 Gửi điểm UAS7 hằng ngày (POST uas702)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/uas7-scores",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "uas7-scores"
-              ]
-            },
-            "description": "Slide 6 uas702",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"score_date\": \"2026-11-13\",\n  \"iss7\": \"2\",\n  \"hss7\": \"2\",\n  \"note\": \"Ngứa nhẹ buổi tối\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "04.3 Xem lịch sử điểm UAS7 của BN (GET uas704)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/uas7-scores/patient/{{patientId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "uas7-scores",
-                "patient",
-                "{{patientId}}"
-              ]
-            },
-            "description": "Slide 6 uas704",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "04.4 [drmayday-system] Xem chu kỳ UAS7 (GET /clinical/uas7/chu-ky)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/clinical/uas7/chu-ky/{{patientId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "clinical",
-                "uas7",
-                "chu-ky",
-                "{{patientId}}"
-              ]
-            },
-            "description": "Route hiện có ở module clinical",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "04.5 [drmayday-system] Ghi nhật ký UAS7 (POST /clinical/uas7/nhat-ky)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/clinical/uas7/nhat-ky",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "clinical",
-                "uas7",
-                "nhat-ky"
-              ]
-            },
-            "description": "Route hiện có ở module clinical (lưu ý: đang dùng tên cột không khớp final_restructured.sql)",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ma_chu_ky\": 1,\n  \"ngay_ghi_nhan\": \"2026-11-13\",\n  \"diem_ngua_sang\": 1,\n  \"diem_san_sang\": 2,\n  \"diem_ngua_toi\": 2,\n  \"diem_san_toi\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
-        },
-        {
-          "name": "04.6 Xem kết quả xét nghiệm theo bệnh án (GET lab02)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/lab-results/{{recordId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lab-results",
-                "{{recordId}}"
-              ]
-            },
-            "description": "Slide 7 lab02",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "04.7 Xem đơn thuốc theo bệnh án (GET /prescriptions/:record_id)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/prescriptions/{{recordId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "prescriptions",
-                "{{recordId}}"
-              ]
-            },
-            "description": "Slide 7 phía bệnh nhân",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "04.8 [drmayday-system] Xem đơn thuốc theo phiên khám (GET /clinical/don-thuoc)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/clinical/don-thuoc/{{sessionId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "clinical",
-                "don-thuoc",
-                "{{sessionId}}"
-              ]
-            },
-            "description": "Route hiện có ở module clinical",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "05. Tổn thương da 3 cấp & Kho ảnh (Slide 8 & 9)",
-      "item": [
-        {
-          "name": "05.1 Tạo đợt tổn thương da (POST lesion02)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/lesion-episodes",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-episodes"
-              ]
-            },
-            "description": "Slide 9 lesion02",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"name\": \"Đợt bùng phát buổi tối 13/11\",\n  \"occurred_at\": \"2026-11-13 20:00:00\",\n  \"context_tags\": \"[\\\"sau ăn\\\"]\",\n  \"medication_name\": \"Desloratadine 5mg\",\n  \"description\": \"Nổi mảng sẩn vùng cánh tay\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const b = pm.response.json();",
-                  "const eid = b && b.data && (b.data.ma_dot_ton_thuong_da || b.data.episode_id);",
-                  "if (eid) { pm.collectionVariables.set(\"episodeId\", String(eid)); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "05.2 Danh sách đợt tổn thương của tôi (GET lesion01)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/lesion-episodes/my",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-episodes",
-                "my"
-              ]
-            },
-            "description": "Slide 9 lesion01",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "05.3 Chi tiết đợt tổn thương (GET lesion06)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-episodes",
-                "{{episodeId}}"
-              ]
-            },
-            "description": "Slide 9 lesion06",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "05.4 Cập nhật đợt tổn thương (PATCH lesion03)",
+          "name": "13. Đổi trạng thái bệnh án (Sheet PATCH /medical_records/:id/status)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1627,67 +1180,88 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-episodes",
-                "{{episodeId}}"
-              ]
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}/status"
             },
-            "description": "Slide 9 lesion03",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{patientToken}}",
+                  "value": "{{doctorToken}}",
                   "type": "string"
                 }
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Đợt bùng phát (Đã cập nhật)\",\n  \"description\": \"Giảm ngứa sau khi uống thuốc\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"id\",\"status\"]);",
+                  "});"
+                ]
               }
             }
-          }
+          ]
         },
         {
-          "name": "05.5 Xóa đợt tổn thương (DELETE lesion04)",
+          "name": "14. Xóa bệnh án (Sheet DELETE /medical_records/:id)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-episodes",
-                "{{episodeId}}"
-              ]
+              "raw": "{{baseUrl}}/medical_records/{{recordId}}"
             },
-            "description": "Slide 9 lesion04",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{patientToken}}",
+                  "value": "{{adminToken}}",
                   "type": "string"
                 }
               ]
             }
-          }
-        },
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08. Cận lâm sàng (Sheet POST /lab-requests & GET /lab-results/:record_id)",
+      "item": [
         {
-          "name": "05.6 Thêm vị trí cơ thể tổn thương (POST loc01)",
+          "name": "01. Tạo yêu cầu xét nghiệm (Sheet POST /lab-requests)",
           "request": {
             "method": "POST",
             "header": [
@@ -1697,15 +1271,202 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesion-locations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-locations"
+              "raw": "{{baseUrl}}/lab-requests"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{doctorToken}}",
+                  "type": "string"
+                }
               ]
             },
-            "description": "Slide 9 loc01",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"note\": \"Chỉ định xét nghiệm thường quy mày đay mạn\",\n  \"items\": [\n    {\n      \"test_name\": \"Công thức máu\",\n      \"description\": \"Đánh giá bạch cầu ái toan\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"created_at\",\"id\",\"items\",\"medical_record_id\",\"note\",\"requested_by\",\"status\"]);",
+                  "  pm.expect(body.data.items).to.be.an(\"array\").and.have.length.above(0);",
+                  "  pm.expect(Object.keys(body.data.items[0]).sort(), \"items[0]\").to.eql([\"description\",\"id\",\"test_name\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Xem kết quả xét nghiệm (Sheet GET /lab-results/:record_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lab-results/{{recordId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"created_at\",\"id\",\"items\",\"note\",\"requested_by\",\"status\"]);",
+                  "    pm.expect(body.data[0].items).to.be.an(\"array\");",
+                  "    if (body.data[0].items.length > 0) {",
+                  "      pm.expect(Object.keys(body.data[0].items[0]).sort(), \"items[0]\").to.eql([\"concluded_by\",\"id\",\"result_id\",\"result_note\",\"result_value\",\"test_name\"]);",
+                  "    }",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09. Đơn thuốc (Sheet POST /prescriptions)",
+      "item": [
+        {
+          "name": "01. Bác sĩ kê đơn thuốc (Sheet POST /prescriptions)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prescriptions"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{doctorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"note\": \"Uống tối trước khi ngủ\",\n  \"items\": [\n    {\n      \"medicine_name\": \"Cetirizine\",\n      \"dosage\": \"10mg\",\n      \"frequency\": \"1 lần/ngày\",\n      \"duration\": \"7 ngày\",\n      \"instruction\": \"Uống sau ăn tối\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"created_at\",\"created_by\",\"items\",\"medical_record_id\",\"note\",\"prescription_id\"]);",
+                  "  pm.expect(body.data.items).to.be.an(\"array\").and.have.length.above(0);",
+                  "  pm.expect(Object.keys(body.data.items[0]).sort(), \"items[0]\").to.eql([\"dosage\",\"duration\",\"frequency\",\"instruction\",\"medicine_name\",\"prescription_item_id\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10. Thang điểm UAS7 (Sheet uas7-scores)",
+      "item": [
+        {
+          "name": "01. Kiểm tra điều kiện UAS7 (Sheet GET /uas7-scores/eligibility)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uas7-scores/eligibility?patient_id={{patientId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"eligible\",\"medical_record_id\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02. Gửi điểm UAS7 hằng ngày (Sheet POST /uas7-scores)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/uas7-scores"
+            },
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1718,12 +1479,142 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"episode_id\": \"{{episodeId}}\",\n  \"body_part\": \"Cánh tay phải\",\n  \"occurred_at\": \"2026-11-13 20:15:00\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"score_date\": \"2026-11-18\",\n  \"iss7\": \"2\",\n  \"hss7\": \"1\",\n  \"note\": \"Ngứa nhẹ buổi tối\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"created_at\",\"daily_score\",\"hss7\",\"iss7\",\"medical_record_id\",\"note\",\"patient_id\",\"score_date\",\"updated_at\"]);",
+                  "  }",
+                  "});"
+                ]
               }
+            }
+          ]
+        },
+        {
+          "name": "03. Lịch sử điểm UAS7 (Sheet GET /uas7-scores/patient/:patient_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uas7-scores/patient/{{patientId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"daily_score\",\"hss7\",\"iss7\",\"medical_record_id\",\"note\",\"patient_id\",\"score_date\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Tổng điểm tuần UAS7 (Sheet GET /uas7-scores/week/:patientId)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uas7-scores/week/{{patientId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"completed_days\",\"patient_id\",\"severity_label\",\"week_score\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13. Đợt tổn thương (Sheet lesion-episodes)",
+      "item": [
+        {
+          "name": "01. Tạo đợt tổn thương (Sheet POST /lesion-episodes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-episodes"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medical_record_id\": \"{{recordId}}\",\n  \"name\": \"Đợt bùng phát buổi tối\",\n  \"occurred_at\": \"2026-11-18 20:00:00\",\n  \"context_tags\": \"[\\\"sau ăn\\\"]\",\n  \"context_other\": \"Ăn hải sản\",\n  \"medication_name\": \"Desloratadine 5mg\",\n  \"medication_taken_ago\": \"2\",\n  \"medication_unit\": \"hour\",\n  \"description\": \"Nổi mảng sẩn vùng cánh tay\"\n}"
             }
           },
           "event": [
@@ -1733,30 +1624,29 @@
                 "type": "text/javascript",
                 "exec": [
                   "const b = pm.response.json();",
-                  "const lid = b && b.data && (b.data.ma_vi_tri_ton_thuong || b.data.lesion_location_id);",
-                  "if (lid) { pm.collectionVariables.set(\"locationId\", String(lid)); }"
+                  "if (b && b.data && b.data.episode_id) pm.collectionVariables.set(\"episodeId\", String(b.data.episode_id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"context_other\",\"context_tags\",\"created_at\",\"description\",\"episode_id\",\"medical_record_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"name\",\"occurred_at\",\"patient_id\",\"updated_at\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "05.7 Danh sách vị trí theo đợt (GET loc03)",
+          "name": "02. Đợt tổn thương của tôi (Sheet GET /lesion-episodes/my)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/lesion-locations/episode/{{episodeId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-locations",
-                "episode",
-                "{{episodeId}}"
-              ]
+              "raw": "{{baseUrl}}/lesion-episodes/my"
             },
-            "description": "Slide 9 loc03",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1767,10 +1657,111 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"created_at\",\"description\",\"episode_id\",\"medical_record_id\",\"name\",\"occurred_at\",\"patient_id\",\"updated_at\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "05.8 Cập nhật vị trí tổn thương (PATCH loc04)",
+          "name": "03. Đợt tổn thương theo bệnh án (Sheet GET /lesion-episodes/record/:medical_record_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-episodes/record/{{recordId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"context_tags\",\"description\",\"id\",\"medical_record_id\",\"name\",\"occurred_at\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Chi tiết đợt tổn thương (Sheet GET /lesion-episodes/:id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"context_other\",\"context_tags\",\"created_at\",\"description\",\"episode_id\",\"medical_record_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"name\",\"occurred_at\",\"patient_id\",\"updated_at\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Cập nhật đợt tổn thương (Sheet PATCH /lesion-episodes/:id)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1780,16 +1771,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesion-locations/{{locationId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-locations",
-                "{{locationId}}"
-              ]
+              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}"
             },
-            "description": "Slide 9 loc04",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1802,31 +1785,37 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"body_part\": \"Cẳng tay phải\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"name\": \"Đợt bùng phát (Đã cập nhật)\",\n  \"description\": \"Giảm ngứa\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"context_other\",\"context_tags\",\"created_at\",\"description\",\"episode_id\",\"medical_record_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"name\",\"occurred_at\",\"patient_id\",\"updated_at\"]);",
+                  "});"
+                ]
               }
             }
-          }
+          ]
         },
         {
-          "name": "05.9 Xóa vị trí tổn thương (DELETE loc05)",
+          "name": "06. Xóa đợt tổn thương (Sheet DELETE /lesion-episodes/:id)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/lesion-locations/{{locationId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-locations",
-                "{{locationId}}"
-              ]
+              "raw": "{{baseUrl}}/lesion-episodes/{{episodeId}}"
             },
-            "description": "Slide 9 loc05",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1837,24 +1826,221 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "14. Vị trí tổn thương (Sheet lesion-locations)",
+      "item": [
+        {
+          "name": "01. Tạo vị trí tổn thương (Sheet POST /lesion-locations)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-locations"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"episode_id\": \"{{episodeId}}\",\n  \"body_part\": \"Cánh tay phải\",\n  \"occurred_at\": \"2026-11-18 20:15:00\",\n  \"context_tags\": \"[\\\"sau ăn\\\"]\",\n  \"medication_name\": \"Cetirizine\",\n  \"medication_taken_ago\": \"1\",\n  \"medication_unit\": \"hour\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "if (b && b.data && b.data.lesion_location_id) pm.collectionVariables.set(\"locationId\", String(b.data.lesion_location_id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"body_part\",\"context_other\",\"context_tags\",\"created_at\",\"episode_id\",\"lesion_location_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"occurred_at\",\"updated_at\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "05.10 Upload ảnh vào kho (POST img01)",
+          "name": "02. Danh sách vị trí theo đợt (Sheet GET /lesion-locations/episode/:episode_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-locations/episode/{{episodeId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"body_part\",\"context_other\",\"context_tags\",\"created_at\",\"episode_id\",\"lesion_location_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"occurred_at\",\"updated_at\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03. Cập nhật vị trí tổn thương (Sheet PATCH /lesion-locations/:id)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-locations/{{locationId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body_part\": \"Cẳng tay phải\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"body_part\",\"context_other\",\"context_tags\",\"created_at\",\"episode_id\",\"lesion_location_id\",\"medication_name\",\"medication_taken_ago\",\"medication_unit\",\"occurred_at\",\"updated_at\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Xóa vị trí tổn thương (Sheet DELETE /lesion-locations/:id)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lesion-locations/{{locationId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "15. Kho ảnh đính kèm (Sheet image-attachments)",
+      "item": [
+        {
+          "name": "01. Upload 1 ảnh (Sheet POST /image-attachments/upload)",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/image-attachments/upload",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "image-attachments",
-                "upload"
-              ]
+              "raw": "{{baseUrl}}/image-attachments/upload"
             },
-            "description": "Slide 8 img01 (Chọn file ảnh trong tab Body -> Multipart Form)",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1879,13 +2065,23 @@
                   "type": "text"
                 },
                 {
+                  "key": "question_id",
+                  "value": "Q_ITCH_DURATION",
+                  "type": "text"
+                },
+                {
                   "key": "media_type",
                   "value": "image",
                   "type": "text"
                 },
                 {
+                  "key": "category",
+                  "value": "lesion",
+                  "type": "text"
+                },
+                {
                   "key": "description",
-                  "value": "Ảnh vùng da cánh tay",
+                  "value": "Ảnh tổn thương cánh tay",
                   "type": "text"
                 }
               ]
@@ -1898,30 +2094,90 @@
                 "type": "text/javascript",
                 "exec": [
                   "const b = pm.response.json();",
-                  "const aid = b && b.data && (b.data.ma_tep_dinh_kem || b.data.id || b.data.sub_id);",
-                  "if (aid) { pm.collectionVariables.set(\"attachmentId\", String(aid)); }"
+                  "if (b && b.data && b.data.id) pm.collectionVariables.set(\"attachmentId\", String(b.data.id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"category\",\"created_at\",\"description\",\"file_name\",\"file_path\",\"file_type\",\"file_url\",\"id\",\"media_type\",\"medical_record_id\",\"question_id\",\"user_id\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "05.11 Danh sách ảnh của user (GET img03)",
+          "name": "02. Upload nhiều ảnh (Sheet POST /image-attachments/upload-multiple)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/image-attachments/upload-multiple"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{patientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "medical_record_id",
+                  "value": "{{recordId}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\",\"total\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"file_url\",\"id\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03. Danh sách ảnh của user (Sheet GET /image-attachments/user/:user_id)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/image-attachments/user/{{patientId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "image-attachments",
-                "user",
-                "{{patientId}}"
-              ]
+              "raw": "{{baseUrl}}/image-attachments/user/{{patientId}}"
             },
-            "description": "Slide 8 img03",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1932,24 +2188,61 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"created_at\",\"file_type\",\"file_url\",\"id\",\"medical_record_id\",\"question_id\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "05.12 Xóa ảnh khỏi kho (DELETE img05)",
+          "name": "04. Xem luồng ảnh binary (Sheet GET /image-attachments/view/:id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/image-attachments/view/{{attachmentId}}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 & binary image\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  pm.expect(String(pm.response.headers.get(\"Content-Type\") || \"\")).to.include(\"image/\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05. Xóa ảnh đính kèm (Sheet DELETE /image-attachments/:id)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/image-attachments/{{attachmentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "image-attachments",
-                "{{attachmentId}}"
-              ]
+              "raw": "{{baseUrl}}/image-attachments/{{attachmentId}}"
             },
-            "description": "Slide 8 img05",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1960,10 +2253,33 @@
                 }
               ]
             }
-          }
-        },
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "16. Ảnh tiến triển 3 mốc (Sheet lesion-photos)",
+      "item": [
         {
-          "name": "05.13 Lưu ảnh tiến triển 3 mốc (POST lphoto01)",
+          "name": "01. Tạo ảnh tổn thương 3 mốc (Sheet POST /lesion-photos)",
           "request": {
             "method": "POST",
             "header": [
@@ -1973,15 +2289,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesion-photos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-photos"
-              ]
+              "raw": "{{baseUrl}}/lesion-photos"
             },
-            "description": "Slide 9 lphoto01",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1994,12 +2303,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"episode_id\": \"{{episodeId}}\",\n  \"location_id\": \"{{locationId}}\",\n  \"attachment_id\": \"{{attachmentId}}\",\n  \"milestone\": \"peak\",\n  \"itch_score\": \"6\",\n  \"pain_score\": \"2\",\n  \"burn_score\": \"4\",\n  \"hives_count\": \"12\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"episode_id\": \"{{episodeId}}\",\n  \"location_id\": \"{{locationId}}\",\n  \"attachment_id\": \"{{attachmentId}}\",\n  \"milestone\": \"peak\",\n  \"itch_score\": \"6\",\n  \"pain_score\": \"2\",\n  \"burn_score\": \"4\",\n  \"hives_count\": \"12\",\n  \"local_auas\": \"8\"\n}"
             }
           },
           "event": [
@@ -2009,30 +2313,29 @@
                 "type": "text/javascript",
                 "exec": [
                   "const b = pm.response.json();",
-                  "const pid = b && b.data && (b.data.ma_anh || b.data.photo_id);",
-                  "if (pid) { pm.collectionVariables.set(\"photoId\", String(pid)); }"
+                  "if (b && b.data && b.data.photo_id) pm.collectionVariables.set(\"photoId\", String(b.data.photo_id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"annotated_url\",\"attachment_id\",\"burn_score\",\"created_at\",\"episode_id\",\"hives_count\",\"itch_score\",\"local_auas\",\"location_id\",\"milestone\",\"pain_score\",\"photo_id\",\"taken_at\",\"updated_at\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "05.14 Lấy ảnh theo vị trí (GET lphoto02)",
+          "name": "02. Danh sách ảnh theo vị trí (Sheet GET /lesion-photos/location/:location_id)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/lesion-photos/location/{{locationId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-photos",
-                "location",
-                "{{locationId}}"
-              ]
+              "raw": "{{baseUrl}}/lesion-photos/location/{{locationId}}"
             },
-            "description": "Slide 9 lphoto02",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2043,10 +2346,33 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"annotated_url\",\"attachment\",\"attachment_id\",\"burn_score\",\"created_at\",\"episode_id\",\"hives_count\",\"itch_score\",\"local_auas\",\"location_id\",\"milestone\",\"pain_score\",\"photo_id\",\"taken_at\",\"updated_at\"]);",
+                  "    pm.expect(body.data[0].attachment).to.be.an(\"object\");",
+                  "    pm.expect(Object.keys(body.data[0].attachment).sort(), \"attachment\").to.eql([\"attachment_id\",\"file_url\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "05.15 Cập nhật mốc ảnh (PATCH lphoto03)",
+          "name": "03. Cập nhật mốc ảnh (Sheet PATCH /lesion-photos/:id/milestone)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -2056,17 +2382,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesion-photos/{{photoId}}/milestone",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-photos",
-                "{{photoId}}",
-                "milestone"
-              ]
+              "raw": "{{baseUrl}}/lesion-photos/{{photoId}}/milestone"
             },
-            "description": "Slide 9 lphoto03",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2079,31 +2396,37 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"milestone\": \"normal\",\n  \"itch_score\": \"1\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"milestone\": \"normal\",\n  \"itch_score\": \"1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"annotated_url\",\"attachment_id\",\"burn_score\",\"created_at\",\"episode_id\",\"hives_count\",\"itch_score\",\"local_auas\",\"location_id\",\"milestone\",\"pain_score\",\"photo_id\",\"taken_at\",\"updated_at\"]);",
+                  "});"
+                ]
               }
             }
-          }
+          ]
         },
         {
-          "name": "05.16 Xóa ảnh tổn thương (DELETE lphoto04)",
+          "name": "04. Xóa ảnh tổn thương (Sheet DELETE /lesion-photos/:id)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/lesion-photos/{{photoId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesion-photos",
-                "{{photoId}}"
-              ]
+              "raw": "{{baseUrl}}/lesion-photos/{{photoId}}"
             },
-            "description": "Slide 9 lphoto04",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2114,10 +2437,33 @@
                 }
               ]
             }
-          }
-        },
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "17. Ảnh gắn câu trả lời (Sheet answer-images)",
+      "item": [
         {
-          "name": "05.17 Gắn ảnh vào câu trả lời (POST ansimg01)",
+          "name": "01. Gắn 1 ảnh vào câu trả lời (Sheet POST /answer-images)",
           "request": {
             "method": "POST",
             "header": [
@@ -2127,15 +2473,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/answer-images",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "answer-images"
-              ]
+              "raw": "{{baseUrl}}/answer-images"
             },
-            "description": "Slide 8 ansimg01",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2148,12 +2487,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answer_id\": \"{{answerId}}\",\n  \"attachment_id\": \"{{attachmentId}}\",\n  \"option_value\": \"YES\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"answer_id\": \"{{answerId}}\",\n  \"attachment_id\": \"{{attachmentId}}\",\n  \"option_value\": \"YES\"\n}"
             }
           },
           "event": [
@@ -2163,98 +2497,23 @@
                 "type": "text/javascript",
                 "exec": [
                   "const b = pm.response.json();",
-                  "if (b && b.data && b.data.id) { pm.collectionVariables.set(\"answerImageId\", String(b.data.id)); }"
+                  "if (b && b.data && b.data.id) pm.collectionVariables.set(\"answerImageId\", String(b.data.id));",
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body.data).sort(), \"data\").to.eql([\"answer_id\",\"attachment_id\",\"created_at\",\"id\",\"option_value\"]);",
+                  "});"
                 ]
               }
             }
           ]
         },
         {
-          "name": "05.18 Lấy ảnh theo câu trả lời (GET ansimg03)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/answer-images/{{answerId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "answer-images",
-                "{{answerId}}"
-              ]
-            },
-            "description": "Slide 8 ansimg03",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "05.19 Gỡ liên kết ảnh khỏi câu trả lời (DELETE ansimg04)",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/answer-images/{{answerImageId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "answer-images",
-                "{{answerImageId}}"
-              ]
-            },
-            "description": "Slide 8 ansimg04",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "05.20 [drmayday-system] Lấy danh mục vị trí (GET /lesions/vi-tri)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/lesions/vi-tri",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesions",
-                "vi-tri"
-              ]
-            },
-            "description": "Route hiện có ở module lesion",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{patientToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "05.21 [drmayday-system] Lưu ảnh mở rộng (POST /lesions/anh-mo-rong)",
+          "name": "02. Gắn nhiều ảnh vào câu trả lời (Sheet POST /answer-images/bulk)",
           "request": {
             "method": "POST",
             "header": [
@@ -2264,16 +2523,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/lesions/anh-mo-rong",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lesions",
-                "anh-mo-rong"
-              ]
+              "raw": "{{baseUrl}}/answer-images/bulk"
             },
-            "description": "Route hiện có ở module lesion (Sub DB Supabase)",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2286,14 +2537,111 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ma_ho_so\": \"{{recordId}}\",\n  \"ten_tep_goc\": \"test_arm.jpg\",\n  \"storage_path\": \"records/test/test_arm.jpg\",\n  \"public_url\": \"https://example.com/test_arm.jpg\",\n  \"vung_co_the\": \"Cánh tay phải\",\n  \"diem_ngua_nrs\": 5\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"answer_id\": \"{{answerId}}\",\n  \"attachments\": [\n    {\n      \"attachment_id\": \"{{attachmentId}}\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\",\"total\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"answer_id\",\"attachment_id\",\"id\"]);",
+                  "  }",
+                  "});"
+                ]
               }
             }
-          }
+          ]
+        },
+        {
+          "name": "03. Lấy ảnh theo câu trả lời (Sheet GET /answer-images/:answer_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/answer-images/{{answerId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  if (body.data.length > 0) {",
+                  "    pm.expect(Object.keys(body.data[0]).sort(), \"data[0]\").to.eql([\"attachment\",\"id\",\"option_value\"]);",
+                  "    pm.expect(body.data[0].attachment).to.be.an(\"object\");",
+                  "    pm.expect(Object.keys(body.data[0].attachment).sort(), \"attachment\").to.eql([\"attachment_id\",\"file_name\",\"file_url\"]);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04. Gỡ ảnh khỏi câu trả lời (Sheet DELETE /answer-images/:id)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/answer-images/{{answerImageId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{patientToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Chuẩn GoogleSheet: top-level keys & code 1000\", function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an(\"object\");",
+                  "  pm.expect(Object.keys(body).sort(), \"top-level\").to.eql([\"code\",\"data\",\"message\"]);",
+                  "  pm.expect(body.code).to.equal(1000);",
+                  "  pm.expect(body.data).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
