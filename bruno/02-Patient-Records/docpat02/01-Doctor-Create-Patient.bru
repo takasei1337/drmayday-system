@@ -1,0 +1,38 @@
+meta {
+  name: docpat02. Bác sĩ tạo mới Bệnh nhân
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/doctor/patients/create
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "full_name": "Trần Thị Mai",
+    "phone": "0987654321",
+    "password": "Password@123",
+    "gender": "female",
+    "year_of_birth": 1996,
+    "career": "Can bo cong chuc",
+    "ethnic": "Kinh",
+    "city_address": "Hà Nội",
+    "commune_address": "Dịch Vọng",
+    "hamlet_address": "Số 12 ngõ 45 Cầu Giấy",
+    "health_insurance_number": "GD4010123456789",
+    "next_of_kin_name": "Trần Văn Ba",
+    "next_of_kin_phone": "0987111222"
+  }
+}
+
