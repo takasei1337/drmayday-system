@@ -1,0 +1,16 @@
+meta {
+  name: medrec14. Bác sĩ cố tình xóa bệnh án (3102)
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}/medical_records/37/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

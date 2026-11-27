@@ -1,0 +1,32 @@
+meta {
+  name: 07. UAS704 - Lấy lịch sử điểm UAS7 của bệnh nhân (1000 OK)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/v1/uas7-scores/patient/{{testPatientId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{doctorToken}}
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("testPatientId")) {
+    bru.setEnvVar("testPatientId", "91");
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+  if (res.getStatus() === 200 && body.code === 1000 && Array.isArray(body.data)) {
+    console.log("✅ [uas704] TC1 PASS: code=1000, count =", body.data.length);
+  } else {
+    console.error("❌ [uas704] TC1 FAIL:", body);
+  }
+}
+

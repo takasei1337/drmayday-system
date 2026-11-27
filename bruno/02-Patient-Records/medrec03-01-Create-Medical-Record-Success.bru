@@ -1,0 +1,33 @@
+meta {
+  name: medrec03. Tạo bệnh án mới thành công (1001)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/medical_records/
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "patient_id": 73,
+    "template_id": "TMPL_URTICARIA_CHRONIC_INIT",
+    "answers": [
+      {
+        "question_id": 6,
+        "answer_text": "10 tuần"
+      }
+    ]
+  }
+}
+

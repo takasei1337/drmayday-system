@@ -1,0 +1,27 @@
+meta {
+  name: medrec03. Tạo bệnh án với template không tồn tại (4101)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/medical_records/
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "patient_id": 73,
+    "template_id": "TMPL_KHONG_TON_TAI"
+  }
+}
+

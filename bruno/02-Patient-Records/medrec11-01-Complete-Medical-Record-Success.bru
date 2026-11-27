@@ -1,0 +1,27 @@
+meta {
+  name: medrec11. Bác sĩ phụ trách chốt bệnh án (1000)
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/medical_records/28
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "status": "completed",
+    "instructions": "Uống thuốc kháng Histamin H1 theo đơn, tránh các yếu tố kích thích, tái khám sau 2 tuần."
+  }
+}
+

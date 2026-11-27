@@ -1,0 +1,31 @@
+meta {
+  name: medrec10. Cập nhật khi bệnh án đã completed (4003)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/medical_records/27/answers
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "6",
+        "answer_text": "Sửa sau khi đóng bệnh án"
+      }
+    ]
+  }
+}
+

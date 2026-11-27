@@ -1,0 +1,36 @@
+meta {
+  name: 06. UAS702 - Điểm ISS7/HSS7 ngoài khoảng 0-3 (5003/5004)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/v1/uas7-scores
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{patientToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "medical_record_id": "{{testMedicalRecordId}}",
+    "score_date": "2026-11-28",
+    "iss7": "5",
+    "hss7": "1"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+  if (body.code === 5003 || body.code === 5004) {
+    console.log("✅ [uas702] TC3 PASS: code =", body.code);
+  } else {
+    console.error("❌ [uas702] TC3 FAIL:", body);
+  }
+}
+

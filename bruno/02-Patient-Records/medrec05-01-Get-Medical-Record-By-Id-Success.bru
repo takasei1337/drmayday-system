@@ -1,0 +1,16 @@
+meta {
+  name: medrec05. Xem chi tiết bệnh án tồn tại (1000)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/37
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

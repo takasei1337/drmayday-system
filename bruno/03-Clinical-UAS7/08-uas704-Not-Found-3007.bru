@@ -1,0 +1,26 @@
+meta {
+  name: 08. UAS704 - patient_id không tồn tại (3007 User not found)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/v1/uas7-scores/patient/9999999
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{doctorToken}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+  if (res.getStatus() === 404 && body.code === 3007) {
+    console.log("✅ [uas704] TC2 PASS: code=3007 (User not found)");
+  } else {
+    console.error("❌ [uas704] TC2 FAIL:", body);
+  }
+}
+

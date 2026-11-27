@@ -1,0 +1,16 @@
+meta {
+  name: medrec06. Xem tóm tắt bệnh án (Summary)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/37/summary
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

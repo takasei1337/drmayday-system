@@ -3,8 +3,8 @@ const router = express.Router();
 const { authenticate, authorize } = require('../../middlewares/auth.middleware');
 
 // Import controllers từ từng folder chức năng riêng biệt
-const docpat01Controller = require('./docpat01/docpat01.controller');
-const docpat02Controller = require('./docpat02/docpat02.controller');
+const docpat01Controller = require('./docpat01.controller');
+const docpat02Controller = require('./docpat02.controller');
 
 /**
  * Tuyến đường API chuyên biệt dành cho Bác sĩ (Doctor Module)

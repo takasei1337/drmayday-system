@@ -1,0 +1,16 @@
+meta {
+  name: medrec04. Lấy danh sách bệnh án chờ tiếp nhận (status=pending)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/all?status=pending&page=1&limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

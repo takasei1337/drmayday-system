@@ -1,0 +1,37 @@
+meta {
+  name: 05. UAS702 - Gửi trùng ngày (5002)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/v1/uas7-scores
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{patientToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "medical_record_id": "{{testMedicalRecordId}}",
+    "score_date": "2026-11-27",
+    "iss7": "2",
+    "hss7": "1",
+    "note": "Gửi lại cùng ngày"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+  if (body.code === 5002) {
+    console.log("✅ [uas702] TC2 PASS: code=5002 (Duplicate score_date)");
+  } else {
+    console.error("❌ [uas702] TC2 FAIL:", body);
+  }
+}
+

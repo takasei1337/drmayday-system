@@ -1,0 +1,16 @@
+meta {
+  name: medrec07. Bệnh án không ở trạng thái pending (4004)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/medical_records/27/accept
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

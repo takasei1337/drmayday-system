@@ -1,0 +1,37 @@
+meta {
+  name: 04. UAS702 - Gửi điểm UAS7 hợp lệ (1001 Created)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/uas7-scores
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{patientToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "medical_record_id": "{{testMedicalRecordId}}",
+    "score_date": "2026-11-27",
+    "iss7": "2",
+    "hss7": "1",
+    "note": "Ngứa nhẹ buổi tối"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+  if (res.getStatus() === 201 && body.code === 1001) {
+    console.log("✅ [uas702] TC1 PASS: code=1001, daily_score =", body.data.daily_score);
+  } else {
+    console.error("❌ [uas702] TC1 FAIL:", body);
+  }
+}
+

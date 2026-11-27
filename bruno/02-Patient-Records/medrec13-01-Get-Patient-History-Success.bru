@@ -1,0 +1,16 @@
+meta {
+  name: medrec13. Xem lịch sử bệnh án của bệnh nhân (1000)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/patients/80/history
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

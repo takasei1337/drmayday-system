@@ -1,0 +1,35 @@
+meta {
+  name: medrec02. Phân loại bệnh án thành công (1000)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/medical_records/classify
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "Q_CLASSIFY_01",
+        "option_value": "NEW"
+      },
+      {
+        "question_id": "Q_CLASSIFY_02",
+        "option_value": "CHRONIC"
+      }
+    ]
+  }
+}
+

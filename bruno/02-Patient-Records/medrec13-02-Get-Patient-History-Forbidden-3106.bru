@@ -1,0 +1,16 @@
+meta {
+  name: medrec13. Bệnh nhân A xem lịch sử bệnh nhân B (3106)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/medical_records/patients/80/history
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+

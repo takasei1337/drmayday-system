@@ -1,0 +1,26 @@
+meta {
+  name: medrec11. Bác sĩ khác gọi chốt bệnh án (3105)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/medical_records/37
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "status": "completed",
+    "instructions": "Chốt bệnh án không được phân công"
+  }
+}

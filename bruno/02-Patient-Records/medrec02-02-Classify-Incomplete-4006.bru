@@ -1,0 +1,31 @@
+meta {
+  name: medrec02. Phân loại thiếu lựa chọn (4006)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/medical_records/classify
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "Q_CLASSIFY_01",
+        "option_value": "NEW"
+      }
+    ]
+  }
+}
+

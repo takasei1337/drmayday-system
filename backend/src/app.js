@@ -9,9 +9,11 @@ const { notFoundHandler, errorHandler } = require('./middlewares/error.middlewar
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const doctorRoutes = require('./modules/doctor/doctor.routes');
+const medicalRecordsRoutes = require('./modules/medical_records/medical_records.routes');
 const patientRoutes = require('./modules/patient/patient.routes');
 const clinicalRoutes = require('./modules/clinical/clinical.routes');
 const lesionRoutes = require('./modules/lesion/lesion.routes');
+const uas7ScoresRoutes = require('./modules/clinical/uas7.routes');
 
 const app = express();
 
@@ -33,9 +35,13 @@ app.use('/api/auth', authRoutes);                  // Chuẩn theo Google Sheets
 app.use('/api/v1/auth', authRoutes);               // Tương thích ngược phiên bản v1
 app.use('/api/v1/admin', adminRoutes);         // Slide 3 & 4 (Admin, Topology, Phòng khám)
 app.use('/api/v1/doctor', doctorRoutes);       // Slide 5 (docpat01, docpat02: Bác sĩ tìm kiếm & tạo bệnh nhân)
+app.use('/api/doctor', doctorRoutes);          // Tương thích đường dẫn /api/doctor
+app.use('/api/v1/medical_records', medicalRecordsRoutes); // Slide 5 (medrec01: Phân loại bệnh án)
+app.use('/api/medical_records', medicalRecordsRoutes);    // Tương thích đường dẫn /api/medical_records
 app.use('/api/v1/patients', patientRoutes);    // Slide 5 (Bệnh nhân & Hồ sơ bệnh án)
 app.use('/api/v1/clinical', clinicalRoutes);   // Slide 6 & 7 (Lâm sàng, Đơn thuốc, UAS7)
 app.use('/api/v1/lesions', lesionRoutes);      // Slide 8, 9, 10, 11 (Tổn thương da, Ảnh, Supabase)
+app.use('/api/v1/uas7-scores', uas7ScoresRoutes); // Slide 7 (UAS7: kiểm tra điều kiện, chấm điểm)
 
 // Xử lý lỗi tập trung
 app.use(notFoundHandler);

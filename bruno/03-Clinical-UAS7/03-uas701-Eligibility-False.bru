@@ -1,0 +1,42 @@
+meta {
+  name: 02. UAS701 - Kiểm tra không đủ điều kiện (Không có bệnh án active)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/uas7-scores/eligibility
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{patientToken2}}
+}
+
+script:pre-request {
+  // patientToken2 = bệnh nhân không có bệnh án in_progress (VD: đã completed hoặc không có)
+  if (!bru.getEnvVar("patientToken2")) {
+    console.warn("⚠️ patientToken2 chưa có. Cần login bằng tài khoản bệnh nhân không có bệnh án in_progress (VD: 0912345678).");
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+
+  if (res.getStatus() === 200 && body.code === 1000) {
+    console.log("✅ [uas701] TC2 PASS: code=1000");
+    if (body.data && body.data.eligible === "false") {
+      console.log("✅ eligible = 'false' (string) ✔");
+      if (!body.data.medical_record_id) {
+        console.log("✅ medical_record_id không có trong response ✔");
+      }
+    } else {
+      console.warn("⚠️ Kết quả không khớp TC2");
+    }
+  } else {
+    console.error("❌ [uas701] TC2 FAIL:", body);
+  }
+}
+

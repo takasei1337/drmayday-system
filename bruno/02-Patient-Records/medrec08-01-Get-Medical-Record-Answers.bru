@@ -1,0 +1,16 @@
+meta {
+  name: medrec08. Lấy danh sách câu trả lời của bệnh án (1000)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/37/answers
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

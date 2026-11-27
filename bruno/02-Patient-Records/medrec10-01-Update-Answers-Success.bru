@@ -1,0 +1,35 @@
+meta {
+  name: medrec10. Cập nhật câu trả lời khi đang in_progress (1000)
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/medical_records/17/answers
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "6",
+        "answer_text": "12 tuần"
+      },
+      {
+        "question_id": "9",
+        "answer_value": ["Lạnh", "Vẽ nổi da (gãi/ma sát)"]
+      }
+    ]
+  }
+}
+

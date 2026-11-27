@@ -1,0 +1,16 @@
+meta {
+  name: medrec14. Admin xóa bệnh án thành công (1000)
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/medical_records/72/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+

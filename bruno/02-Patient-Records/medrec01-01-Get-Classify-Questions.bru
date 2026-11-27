@@ -1,0 +1,16 @@
+meta {
+  name: medrec01. Lấy danh sách câu hỏi phân loại bệnh án
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/medical_records/classify-questions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

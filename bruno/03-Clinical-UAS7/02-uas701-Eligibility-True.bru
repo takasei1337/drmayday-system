@@ -1,0 +1,41 @@
+meta {
+  name: 01. UAS701 - Kiểm tra đủ điều kiện (Có bệnh án in_progress)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/uas7-scores/eligibility
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{patientToken}}
+}
+
+script:pre-request {
+  // Dùng patientToken đã được lưu từ bước login
+  if (!bru.getEnvVar("patientToken")) {
+    console.warn("⚠️ patientToken chưa có. Hãy chạy 03-Login-Patient.bru trong 00-Auth trước.");
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  console.log("📋 Response:", JSON.stringify(body, null, 2));
+
+  if (res.getStatus() === 200 && body.code === 1000) {
+    console.log("✅ [uas701] TC1 PASS: code=1000");
+    if (body.data && body.data.eligible === "true") {
+      console.log("✅ eligible = 'true' (string) ✔");
+      bru.setEnvVar("testMedicalRecordId", body.data.medical_record_id);
+      console.log("✅ medical_record_id =", body.data.medical_record_id);
+    } else {
+      console.warn("⚠️ eligible không phải 'true' – bệnh nhân này có thể không có bệnh án in_progress");
+    }
+  } else {
+    console.error("❌ [uas701] TC1 FAIL:", body);
+  }
+}
+

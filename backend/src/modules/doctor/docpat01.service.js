@@ -1,4 +1,4 @@
-const db = require('../../../config/db');
+const db = require('../../config/db');
 
 /**
  * Chuẩn hóa giới tính theo ràng buộc CSDL ('Nam', 'Nu')

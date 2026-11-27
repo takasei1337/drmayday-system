@@ -1,0 +1,16 @@
+meta {
+  name: medrec07. Bệnh án đã được bác sĩ khác nhận (4005)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/medical_records/17/accept
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

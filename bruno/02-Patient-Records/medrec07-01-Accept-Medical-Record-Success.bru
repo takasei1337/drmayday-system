@@ -1,0 +1,16 @@
+meta {
+  name: medrec07. Bác sĩ tiếp nhận bệnh án pending (1000)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/medical_records/28/accept
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+

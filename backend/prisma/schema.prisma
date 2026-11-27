@@ -146,3 +146,29 @@ model AnhTonThuongMoRong {
   @@index([maTaiKhoan])
   @@map("anh_ton_thuong_mo_rong")
 }
+
+// ------------------------------------------------------------------------------
+// 6. CÂU HỎI SÀNG LỌC PHÂN LOẠI BỆNH ÁN (Medical Records Classify - Slide 5: medrec01)
+// ------------------------------------------------------------------------------
+model ClassifyQuestion {
+  questionId   String                   @id @db.VarChar(50) @map("question_id")
+  questionText String                   @map("question_text")
+  typeQuestion String                   @map("type_question") // radio, checkbox...
+  orderIndex   Int                      @default(0) @map("order_index")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  options      ClassifyQuestionOption[]
+
+  @@map("questions")
+}
+
+model ClassifyQuestionOption {
+  id          Int              @id @default(autoincrement())
+  questionId  String           @db.VarChar(50) @map("question_id")
+  optionText  String           @map("option_text")
+  optionValue String           @map("option_value")
+  question    ClassifyQuestion @relation(fields: [questionId], references: [questionId], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
