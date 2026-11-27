@@ -9,6 +9,9 @@ const {
   createAppError,
   isStaffRole,
   resolvePatientIdForUser,
+  parsePositiveIntId,
+  parseValidDateTime,
+  decodeMulterFilename,
 } = require('./patient.helpers');
 
 /**
@@ -210,10 +213,7 @@ class PatientFlowService {
   }
 
   async _getRecordOrThrow(recordId, user = null) {
-    const rid = parseInt(recordId, 10);
-    if (Number.isNaN(rid) || rid <= 0) {
-      throw createAppError('Mã hồ sơ bệnh án không hợp lệ', 1004, 400);
-    }
+    const rid = parsePositiveIntId(recordId, 'Mã hồ sơ bệnh án');
     const res = await db.query(
       `SELECT hs.*, ng.ho_ten, ng.so_dien_thoai, ng.gioi_tinh, ng.ngay_sinh
        FROM public.hosobenhan hs
@@ -232,35 +232,68 @@ class PatientFlowService {
     return row;
   }
 
+  _validateAnswersPayload(rawAnswers) {
+    if (rawAnswers === undefined || rawAnswers === null) return;
+    if (!Array.isArray(rawAnswers)) {
+      throw createAppError('answers phải là mảng các câu trả lời', 1003, 400);
+    }
+    for (const item of rawAnswers) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw createAppError('Mỗi phần tử trong answers phải là object hợp lệ', 1004, 400);
+      }
+      const qidRaw = item.question_id !== undefined ? item.question_id : item.questionId;
+      if (qidRaw === undefined || qidRaw === null || String(qidRaw).trim() === '') {
+        throw createAppError('Mỗi câu trả lời phải có question_id hợp lệ', 1004, 400);
+      }
+      if (typeof qidRaw !== 'string' && typeof qidRaw !== 'number') {
+        throw createAppError('question_id phải là chuỗi hoặc số nguyên', 1003, 400);
+      }
+      const rawOpt = item.question_option_id !== undefined ? item.question_option_id : item.option_id;
+      if (rawOpt !== undefined && rawOpt !== null && String(rawOpt).trim() !== '') {
+        parsePositiveIntId(rawOpt, 'question_option_id');
+      }
+    }
+  }
+
   async createMedicalRecord(user, data = {}) {
-    let pid = data.ma_benh_nhan || data.patient_id;
+    let pid = data.ma_benh_nhan !== undefined ? data.ma_benh_nhan : data.patient_id;
     if (!isStaffRole(user)) {
       pid = await resolvePatientIdForUser(db, user);
     }
     if (!pid) {
       throw createAppError('Không xác định được mã bệnh nhân cho hồ sơ mới', 1002, 400);
     }
-    await patientService.assertPatientAccess(user, pid);
+    pid = await patientService.assertPatientAccess(user, pid);
 
     const payload = { ...data, ma_benh_nhan: pid };
-    if (payload.template_id) {
-      const tmpl = await templateSeed.getTemplateByIdOrCode(payload.template_id);
-      if (tmpl) {
-        payload.template_id = tmpl.id;
-        if (!payload.loai_benh_an) {
-          payload.loai_benh_an = tmpl.codeTemplate.includes('ACUTE') ? 'CAP' : 'MAN';
-        }
-        if (!payload.record_subtype) {
-          payload.record_subtype = tmpl.codeTemplate.replace(/^TMPL_/, '');
-        }
+    if (payload.template_id !== undefined && payload.template_id !== null && String(payload.template_id).trim() !== '') {
+      if (typeof payload.template_id !== 'string' && typeof payload.template_id !== 'number') {
+        throw createAppError('template_id phải là chuỗi hoặc số', 1003, 400);
       }
-    } else if (!payload.loai_benh_an && (payload.duration_weeks !== undefined || payload.type || payload.record_subtype)) {
-      const classified = await this.classifyMedicalRecord(payload);
-      const tmpl = await templateSeed.getTemplateByIdOrCode(classified.template_id);
-      payload.loai_benh_an = classified.template_id.includes('ACUTE') ? 'CAP' : 'MAN';
-      payload.record_subtype = classified.template_id.replace(/^TMPL_/, '');
-      payload.template_id = tmpl?.id || (payload.loai_benh_an === 'CAP' ? 1 : 2);
+      const tmpl = await templateSeed.getTemplateByIdOrCode(payload.template_id);
+      if (!tmpl) {
+        throw createAppError(`Không tìm thấy mẫu phiếu #${payload.template_id}`, 9992, 404);
+      }
+      payload.template_id = tmpl.id;
+      if (!payload.loai_benh_an) {
+        payload.loai_benh_an = tmpl.codeTemplate.includes('ACUTE') ? 'CAP' : 'MAN';
+      }
+      if (!payload.record_subtype) {
+        payload.record_subtype = tmpl.codeTemplate.replace(/^TMPL_/, '');
+      }
+    } else if (payload.loai_benh_an || payload.record_type || payload.duration_weeks !== undefined || payload.type || payload.record_subtype) {
+      if (!payload.loai_benh_an && !payload.record_type) {
+        const classified = await this.classifyMedicalRecord(payload);
+        const tmpl = await templateSeed.getTemplateByIdOrCode(classified.template_id);
+        payload.loai_benh_an = classified.template_id.includes('ACUTE') ? 'CAP' : 'MAN';
+        payload.record_subtype = classified.template_id.replace(/^TMPL_/, '');
+        payload.template_id = tmpl?.id || (payload.loai_benh_an === 'CAP' ? 1 : 2);
+      }
+    } else {
+      throw createAppError('Thiếu template_id', 1002, 400);
     }
+
+    this._validateAnswersPayload(data.answers);
 
     const created = await patientService.createHoSoBenhAn(payload, user);
     const rid = Number(created.ma_ho_so);
@@ -500,11 +533,14 @@ class PatientFlowService {
   }
 
   async _resolveNumericQuestionId(rawQuestionId) {
-    if (typeof rawQuestionId === 'number' && !Number.isNaN(rawQuestionId) && rawQuestionId > 0) {
+    if (typeof rawQuestionId === 'number' && Number.isInteger(rawQuestionId) && rawQuestionId > 0 && rawQuestionId <= 2147483647) {
       return rawQuestionId;
     }
     const rawStr = String(rawQuestionId || '').trim();
-    if (/^\d+$/.test(rawStr)) return parseInt(rawStr, 10);
+    if (/^\d+$/.test(rawStr)) {
+      const n = Number(rawStr);
+      if (n > 0 && n <= 2147483647) return n;
+    }
     if (!rawStr) return null;
 
     const byCode = await prisma.templateQuestion.findFirst({
@@ -566,15 +602,21 @@ class PatientFlowService {
 
     let count = 0;
     for (const item of list) {
-      const rawQid = item.question_id || item.questionId;
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw createAppError('Mỗi phần tử trong answers phải là object hợp lệ', 1004, 400);
+      }
+      const rawQid = item.question_id !== undefined ? item.question_id : item.questionId;
+      if (rawQid === undefined || rawQid === null || String(rawQid).trim() === '') {
+        throw createAppError('Mỗi câu trả lời phải có question_id hợp lệ', 1004, 400);
+      }
       const qid = await this._resolveNumericQuestionId(rawQid);
       if (!qid || qid <= 0) continue;
 
-      const questionCode = rawQid !== undefined && rawQid !== null ? String(rawQid) : String(qid);
-      const rawOptionId = item.question_option_id ?? item.option_id;
+      const questionCode = String(rawQid).trim();
+      const rawOptionId = item.question_option_id !== undefined ? item.question_option_id : item.option_id;
       const questionOptionId =
-        rawOptionId !== undefined && rawOptionId !== null && !Number.isNaN(parseInt(rawOptionId, 10))
-          ? parseInt(rawOptionId, 10)
+        rawOptionId !== undefined && rawOptionId !== null && String(rawOptionId).trim() !== ''
+          ? parsePositiveIntId(rawOptionId, 'question_option_id')
           : null;
 
       const answerTextRaw =
@@ -798,11 +840,11 @@ class PatientFlowService {
   }
 
   async deleteMedicalRecord(user, recordId) {
+    if (String(user?.vai_tro || '').toLowerCase() !== 'admin') {
+      throw createAppError('Chỉ Admin mới có quyền xóa hồ sơ bệnh án', 1009, 403);
+    }
     const row = await this._getRecordOrThrow(recordId, user);
     const rid = Number(row.ma_ho_so);
-    if (row.trang_thai === 'completed' && String(user?.vai_tro || '').toLowerCase() !== 'admin') {
-      throw createAppError('Chỉ Admin mới có quyền xóa hồ sơ đã hoàn tất', 1009, 403);
-    }
 
     const client = await db.pool.connect();
     try {
@@ -1627,22 +1669,111 @@ class PatientFlowService {
     };
   }
 
+  _validateLesionCommonFields(data = {}) {
+    const occurredAtRaw = data.thoi_diem_xuat_hien !== undefined
+      ? data.thoi_diem_xuat_hien
+      : (data.started_at !== undefined ? data.started_at : data.occurred_at);
+    const occurredAt = occurredAtRaw !== undefined ? parseValidDateTime(occurredAtRaw, 'occurred_at') : undefined;
+    const endedAt = data.ended_at !== undefined ? parseValidDateTime(data.ended_at, 'ended_at') : undefined;
+    if (occurredAt && endedAt && endedAt < occurredAt) {
+      throw createAppError('ended_at không được nhỏ hơn occurred_at', 1004, 400);
+    }
+
+    const takenAgoRaw = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien !== undefined
+      ? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien
+      : data.medication_taken_ago;
+    if (takenAgoRaw !== undefined && takenAgoRaw !== null && String(takenAgoRaw).trim() !== '') {
+      const takenNum = Number(takenAgoRaw);
+      if (Number.isNaN(takenNum) || !Number.isFinite(takenNum) || takenNum < 0) {
+        throw createAppError('medication_taken_ago phải là số không âm', 1004, 400);
+      }
+    }
+
+    const medUnitRaw = data.don_vi_thoi_gian !== undefined ? data.don_vi_thoi_gian : data.medication_unit;
+    if (medUnitRaw !== undefined && medUnitRaw !== null && String(medUnitRaw).trim() !== '') {
+      const allowedUnits = new Set([
+        'minute', 'minutes', 'min', 'phut', 'phút',
+        'hour', 'hours', 'hr', 'gio', 'giờ',
+        'day', 'days', 'ngay', 'ngày',
+        'week', 'weeks', 'tuan', 'tuần',
+        'month', 'months', 'thang', 'tháng',
+      ]);
+      if (typeof medUnitRaw !== 'string' || !allowedUnits.has(medUnitRaw.trim().toLowerCase())) {
+        throw createAppError('medication_unit không hợp lệ (hỗ trợ: minute, hour, day, week, month)', 1004, 400);
+      }
+    }
+
+    if (data.context_tags !== undefined && data.context_tags !== null) {
+      if (typeof data.context_tags === 'string') {
+        const trimmed = data.context_tags.trim();
+        if (trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (!Array.isArray(parsed)) throw new Error('not array');
+          } catch {
+            throw createAppError('context_tags phải là mảng hoặc chuỗi JSON hợp lệ', 1004, 400);
+          }
+        }
+      } else if (!Array.isArray(data.context_tags)) {
+        throw createAppError('context_tags phải là chuỗi hoặc mảng', 1003, 400);
+      }
+    }
+
+    for (const [k, label] of [['itch_score_nrs', 'itch_score_nrs'], ['pain_score_nrs', 'pain_score_nrs']]) {
+      if (data[k] !== undefined && data[k] !== null && String(data[k]).trim() !== '') {
+        const n = Number(data[k]);
+        if (!Number.isInteger(n) || n < 0 || n > 10) {
+          throw createAppError(`${label} phải là số nguyên 0..10`, 1004, 400);
+        }
+      }
+    }
+
+    return { occurredAt, endedAt };
+  }
+
+  async _ensureLesionRecordEditable(episodeRow, user) {
+    let rid = episodeRow.ma_ho_so_man ? Number(episodeRow.ma_ho_so_man) : null;
+    if (!rid) {
+      const meta = await prisma.lesionEpisodeMeta
+        .findUnique({ where: { maDotTonThuong: BigInt(episodeRow.ma_dot_ton_thuong_da) } })
+        .catch(() => null);
+      if (meta?.maHoSo) rid = Number(meta.maHoSo);
+    }
+    if (rid) {
+      const hs = await this._getRecordOrThrow(rid, user);
+      if (hs.trang_thai === 'completed' || hs.trang_thai === 'cancelled') {
+        throw createAppError('Hồ sơ bệnh án đã hoàn tất/hủy, không thể chỉnh sửa tổn thương', 1010, 400);
+      }
+    }
+  }
+
   async createLesionEpisode(user, data = {}) {
-    const rid = parseInt(data.ma_ho_so || data.medical_record_id, 10);
-    const hs = await this._getRecordOrThrow(rid, user);
-    const epName = data.ten_dot_ton_thuong_da || data.episode_name || data.name || '';
-    if (!String(epName).trim()) {
+    const rawRid = data.ma_ho_so !== undefined ? data.ma_ho_so : data.medical_record_id;
+    const hs = await this._getRecordOrThrow(rawRid, user);
+    if (hs.trang_thai === 'completed' || hs.trang_thai === 'cancelled') {
+      throw createAppError('Hồ sơ bệnh án đã hoàn tất/hủy, không thể tạo đợt tổn thương', 1010, 400);
+    }
+    const rawName = data.ten_dot_ton_thuong_da !== undefined
+      ? data.ten_dot_ton_thuong_da
+      : (data.episode_name !== undefined ? data.episode_name : data.name);
+    if (rawName === undefined || rawName === null || String(rawName).trim() === '') {
       throw createAppError('Tên đợt tổn thương không được để rỗng', 1002, 400);
     }
+    if (typeof rawName !== 'string') {
+      throw createAppError('Tên đợt tổn thương phải là chuỗi ký tự', 1003, 400);
+    }
+    const epName = rawName.trim();
+    const { occurredAt } = this._validateLesionCommonFields(data);
 
     // Chỉ gán ma_ho_so_man nếu hồ sơ là MAN (FK tới benhanmaydayman), còn CAP để NULL & lưu ở Sub DB
     const maHoSoMan = hs.loai_benh_an === 'MAN' ? Number(hs.ma_ho_so) : null;
     const rawCtx = data.hoan_canh_xuat_hien || data.trigger_category;
-    const ctxTagOther = !rawCtx && data.context_tags ? 'Khac' : rawCtx;
+    const ctxTagsStr = Array.isArray(data.context_tags) ? JSON.stringify(data.context_tags) : data.context_tags;
+    const ctxTagOther = !rawCtx && ctxTagsStr ? 'Khac' : rawCtx;
     const ctxOtherDetail =
       data.hoan_canh_xuat_hien_khac ||
       data.context_other ||
-      (!rawCtx && data.context_tags ? String(data.context_tags) : null);
+      (!rawCtx && ctxTagsStr ? String(ctxTagsStr) : null);
     const { hoanCanh, hoanCanhKhac } = this._normalizeCircumstance(ctxTagOther, ctxOtherDetail);
 
     const takenAgo = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien ?? data.medication_taken_ago ?? null;
@@ -1658,13 +1789,13 @@ class PatientFlowService {
       [
         hs.ma_benh_nhan,
         maHoSoMan,
-        String(epName).trim(),
-        data.thoi_diem_xuat_hien || data.started_at || data.occurred_at || new Date(),
+        epName,
+        occurredAt || new Date(),
         hoanCanh,
         hoanCanhKhac,
         data.ten_thuoc_dung_gan_thoi_diem_xuat_hien || data.medication_name || null,
-        takenAgo,
-        medUnit,
+        takenAgo !== null && takenAgo !== undefined && String(takenAgo).trim() !== '' ? String(takenAgo).trim() : null,
+        medUnit ? String(medUnit).trim() : null,
         data.chi_tiet_dot_ton_thuong || data.notes || data.description || null,
       ]
     );
@@ -1678,15 +1809,15 @@ class PatientFlowService {
         maBenhNhan: BigInt(hs.ma_benh_nhan),
         hasLesions: data.has_lesions !== undefined ? Boolean(data.has_lesions) : true,
         triggerCategory: hoanCanh,
-        contextTags: data.context_tags !== undefined ? String(data.context_tags) : null,
+        contextTags: ctxTagsStr !== undefined && ctxTagsStr !== null ? String(ctxTagsStr) : null,
         contextOther: data.context_other !== undefined ? String(data.context_other) : null,
-        medicationTakenAgo: takenAgo !== null ? String(takenAgo) : null,
-        medicationUnit: medUnit !== null ? String(medUnit) : null,
+        medicationTakenAgo: takenAgo !== null && takenAgo !== undefined ? String(takenAgo) : null,
+        medicationUnit: medUnit !== null && medUnit !== undefined ? String(medUnit) : null,
       },
       update: {
         hasLesions: data.has_lesions !== undefined ? Boolean(data.has_lesions) : true,
         triggerCategory: hoanCanh,
-        contextTags: data.context_tags !== undefined ? String(data.context_tags) : undefined,
+        contextTags: ctxTagsStr !== undefined && ctxTagsStr !== null ? String(ctxTagsStr) : undefined,
         contextOther: data.context_other !== undefined ? String(data.context_other) : undefined,
       },
     }).catch(() => null);
@@ -1765,34 +1896,43 @@ class PatientFlowService {
   }
 
   async updateLesionEpisode(user, episodeId, data = {}) {
-    const eid = parseInt(episodeId, 10);
+    const eid = parsePositiveIntId(episodeId, 'Mã đợt tổn thương');
     const chk = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const existing = chk.rows[0];
     if (!existing) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, existing.ma_benh_nhan);
+    await this._ensureLesionRecordEditable(existing, user);
+
+    const { occurredAt, endedAt } = this._validateLesionCommonFields(data);
 
     const sets = [];
     const vals = [];
     let idx = 1;
     if (data.ten_dot_ton_thuong_da !== undefined || data.episode_name !== undefined || data.name !== undefined) {
+      const nextName = data.ten_dot_ton_thuong_da ?? data.episode_name ?? data.name;
+      if (nextName === null || typeof nextName !== 'string' || nextName.trim() === '') {
+        throw createAppError('Tên đợt tổn thương không được để rỗng', 1004, 400);
+      }
       sets.push(`ten_dot_ton_thuong_da = $${idx++}`);
-      vals.push(data.ten_dot_ton_thuong_da ?? data.episode_name ?? data.name);
+      vals.push(nextName.trim());
     }
-    if (data.occurred_at !== undefined || data.thoi_diem_xuat_hien !== undefined) {
+    if (occurredAt !== undefined) {
       sets.push(`thoi_diem_xuat_hien = $${idx++}`);
-      vals.push(data.occurred_at ?? data.thoi_diem_xuat_hien);
+      vals.push(occurredAt);
     }
     if (data.medication_name !== undefined || data.ten_thuoc_dung_gan_thoi_diem_xuat_hien !== undefined) {
       sets.push(`ten_thuoc_dung_gan_thoi_diem_xuat_hien = $${idx++}`);
       vals.push(data.medication_name ?? data.ten_thuoc_dung_gan_thoi_diem_xuat_hien);
     }
     if (data.medication_taken_ago !== undefined || data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien !== undefined) {
+      const rawTaken = data.medication_taken_ago ?? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien;
       sets.push(`thoi_gian_dung_thuoc_truoc_khi_xuat_hien = $${idx++}`);
-      vals.push(data.medication_taken_ago ?? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien);
+      vals.push(rawTaken === null || rawTaken === '' ? null : String(rawTaken).trim());
     }
     if (data.medication_unit !== undefined || data.don_vi_thoi_gian !== undefined) {
+      const rawUnit = data.medication_unit ?? data.don_vi_thoi_gian;
       sets.push(`don_vi_thoi_gian = $${idx++}`);
-      vals.push(data.medication_unit ?? data.don_vi_thoi_gian);
+      vals.push(rawUnit ? String(rawUnit).trim() : null);
     }
     if (data.chi_tiet_dot_ton_thuong !== undefined || data.notes !== undefined || data.description !== undefined) {
       sets.push(`chi_tiet_dot_ton_thuong = $${idx++}`);
@@ -1817,9 +1957,11 @@ class PatientFlowService {
     }
 
     const subData = {};
-    if (data.ended_at !== undefined) subData.endedAt = data.ended_at ? new Date(data.ended_at) : null;
+    if (endedAt !== undefined) subData.endedAt = endedAt;
     if (data.has_lesions !== undefined) subData.hasLesions = Boolean(data.has_lesions);
-    if (data.context_tags !== undefined) subData.contextTags = String(data.context_tags);
+    if (data.context_tags !== undefined) {
+      subData.contextTags = Array.isArray(data.context_tags) ? JSON.stringify(data.context_tags) : String(data.context_tags);
+    }
     if (data.context_other !== undefined) subData.contextOther = String(data.context_other);
     if (data.medication_taken_ago !== undefined) subData.medicationTakenAgo = String(data.medication_taken_ago);
     if (data.medication_unit !== undefined) subData.medicationUnit = String(data.medication_unit);
@@ -1835,7 +1977,7 @@ class PatientFlowService {
   }
 
   async getLesionEpisodeById(user, episodeId) {
-    const eid = parseInt(episodeId, 10);
+    const eid = parsePositiveIntId(episodeId, 'Mã đợt tổn thương');
     const res = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const row = res.rows[0];
     if (!row) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
@@ -1845,10 +1987,11 @@ class PatientFlowService {
   }
 
   async deleteLesionEpisode(user, episodeId) {
-    const eid = parseInt(episodeId, 10);
-    const res = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
+    const eid = parsePositiveIntId(episodeId, 'Mã đợt tổn thương');
+    const res = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     if (!res.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
+    await this._ensureLesionRecordEditable(res.rows[0], user);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_dot_ton_thuong_da = $1', [eid]);
     await db.query('DELETE FROM public.vitritonthuong WHERE ma_dot_ton_thuong_da = $1', [eid]);
@@ -1874,22 +2017,30 @@ class PatientFlowService {
   }
 
   async createLesionLocation(user, data = {}) {
-    const eid = parseInt(data.episode_id || data.ma_dot_ton_thuong_da, 10);
+    const eid = parsePositiveIntId(data.episode_id !== undefined ? data.episode_id : data.ma_dot_ton_thuong_da, 'episode_id');
     const epRes = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const ep = epRes.rows[0];
     if (!ep) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, ep.ma_benh_nhan);
+    await this._ensureLesionRecordEditable(ep, user);
 
-    const bodyPart = String(data.vi_tri_co_the || data.body_part || '').trim();
-    if (!bodyPart) {
+    const rawBodyPart = data.vi_tri_co_the !== undefined ? data.vi_tri_co_the : data.body_part;
+    if (rawBodyPart === undefined || rawBodyPart === null || String(rawBodyPart).trim() === '') {
       throw createAppError('Vị trí body_part không được để rỗng', 1002, 400);
     }
+    if (typeof rawBodyPart !== 'string') {
+      throw createAppError('body_part phải là chuỗi ký tự', 1003, 400);
+    }
+    const bodyPart = rawBodyPart.trim();
+    const { occurredAt } = this._validateLesionCommonFields(data);
+
     const rawCtx = data.hoan_canh_xuat_hien;
-    const ctxTagOther = !rawCtx && data.context_tags ? 'Khac' : rawCtx;
+    const ctxTagsStr = Array.isArray(data.context_tags) ? JSON.stringify(data.context_tags) : data.context_tags;
+    const ctxTagOther = !rawCtx && ctxTagsStr ? 'Khac' : rawCtx;
     const ctxOtherDetail =
       data.hoan_canh_xuat_hien_khac ||
       data.context_other ||
-      (!rawCtx && data.context_tags ? String(data.context_tags) : null);
+      (!rawCtx && ctxTagsStr ? String(ctxTagsStr) : null);
     const { hoanCanh, hoanCanhKhac } = this._normalizeCircumstance(ctxTagOther, ctxOtherDetail);
 
     const medName = data.ten_thuoc_lien_quan ?? data.medication_name ?? null;
@@ -1905,12 +2056,12 @@ class PatientFlowService {
       [
         eid,
         bodyPart,
-        data.thoi_diem_xuat_hien || data.occurred_at || new Date(),
+        occurredAt || new Date(),
         medName,
-        takenAgo,
+        takenAgo !== null && takenAgo !== undefined && String(takenAgo).trim() !== '' ? String(takenAgo).trim() : null,
         hoanCanh,
         hoanCanhKhac,
-        medUnit,
+        medUnit ? String(medUnit).trim() : null,
       ]
     );
     const row = ins.rows[0];
@@ -1921,10 +2072,10 @@ class PatientFlowService {
         maViTriTonThuong: BigInt(row.ma_vi_tri_ton_thuong),
         maDotTonThuong: BigInt(eid),
         bodyPart,
-        contextTags: data.context_tags !== undefined ? String(data.context_tags) : null,
+        contextTags: ctxTagsStr !== undefined && ctxTagsStr !== null ? String(ctxTagsStr) : null,
         contextOther: data.context_other !== undefined ? String(data.context_other) : null,
         medicationName: medName ? String(medName) : null,
-        medicationTakenAgo: takenAgo ? String(takenAgo) : null,
+        medicationTakenAgo: takenAgo !== null && takenAgo !== undefined ? String(takenAgo) : null,
         medicationUnit: medUnit ? String(medUnit) : null,
         lesionType: data.lesion_type || null,
         itchScoreNrs: data.itch_score_nrs !== undefined ? parseInt(data.itch_score_nrs, 10) : null,
@@ -1938,16 +2089,17 @@ class PatientFlowService {
   }
 
   async getLesionLocations(user, queryParams = {}) {
-    const eid = queryParams.episode_id || queryParams.ma_dot_ton_thuong_da;
+    const eidRaw = queryParams.episode_id !== undefined ? queryParams.episode_id : queryParams.ma_dot_ton_thuong_da;
     let rows = [];
-    if (eid) {
-      const epRes = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [parseInt(eid, 10)]);
-      if (!epRes.rows[0]) return [];
+    if (eidRaw !== undefined && eidRaw !== null && String(eidRaw).trim() !== '') {
+      const eid = parsePositiveIntId(eidRaw, 'episode_id');
+      const epRes = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
+      if (!epRes.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
       await patientService.assertPatientAccess(user, epRes.rows[0].ma_benh_nhan);
 
       const res = await db.query(
         'SELECT * FROM public.vitritonthuong WHERE ma_dot_ton_thuong_da = $1 ORDER BY ma_vi_tri_ton_thuong DESC',
-        [parseInt(eid, 10)]
+        [eid]
       );
       rows = res.rows;
     } else {
@@ -1979,9 +2131,9 @@ class PatientFlowService {
   }
 
   async updateLesionLocation(user, locationId, data = {}) {
-    const lid = parseInt(locationId, 10);
+    const lid = parsePositiveIntId(locationId, 'Mã vị trí tổn thương');
     const res = await db.query(
-      `SELECT v.*, d.ma_benh_nhan
+      `SELECT v.*, d.ma_benh_nhan, d.ma_ho_so_man
        FROM public.vitritonthuong v
        JOIN public.dottonthuongda d ON v.ma_dot_ton_thuong_da = d.ma_dot_ton_thuong_da
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
@@ -1989,8 +2141,16 @@ class PatientFlowService {
     );
     if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
+    await this._ensureLesionRecordEditable(res.rows[0], user);
+
+    const { occurredAt } = this._validateLesionCommonFields(data);
 
     const bodyPart = data.vi_tri_co_the !== undefined ? data.vi_tri_co_the : data.body_part;
+    if (bodyPart !== undefined) {
+      if (bodyPart === null || typeof bodyPart !== 'string' || bodyPart.trim() === '') {
+        throw createAppError('Vị trí body_part không được để rỗng', 1004, 400);
+      }
+    }
     const medName = data.ten_thuoc_lien_quan !== undefined ? data.ten_thuoc_lien_quan : data.medication_name;
     const takenAgo = data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien !== undefined ? data.thoi_gian_dung_thuoc_truoc_khi_xuat_hien : data.medication_taken_ago;
     const medUnit = data.don_vi_thoi_gian !== undefined ? data.don_vi_thoi_gian : data.medication_unit;
@@ -2004,11 +2164,11 @@ class PatientFlowService {
         vals.push(val);
       }
     };
-    add('vi_tri_co_the', bodyPart);
-    add('thoi_diem_xuat_hien', data.occurred_at ?? data.thoi_diem_xuat_hien);
+    add('vi_tri_co_the', bodyPart !== undefined ? bodyPart.trim() : undefined);
+    add('thoi_diem_xuat_hien', occurredAt);
     add('ten_thuoc_lien_quan', medName);
-    add('thoi_gian_dung_thuoc_truoc_khi_xuat_hien', takenAgo);
-    add('don_vi_thoi_gian', medUnit);
+    add('thoi_gian_dung_thuoc_truoc_khi_xuat_hien', takenAgo !== undefined ? (takenAgo === null || takenAgo === '' ? null : String(takenAgo).trim()) : undefined);
+    add('don_vi_thoi_gian', medUnit !== undefined ? (medUnit ? String(medUnit).trim() : null) : undefined);
 
     let updatedRow = res.rows[0];
     if (sets.length > 0) {
@@ -2021,11 +2181,13 @@ class PatientFlowService {
     }
 
     const subUpdate = {};
-    if (bodyPart !== undefined) subUpdate.bodyPart = bodyPart;
-    if (data.context_tags !== undefined) subUpdate.contextTags = String(data.context_tags);
+    if (bodyPart !== undefined) subUpdate.bodyPart = bodyPart.trim();
+    if (data.context_tags !== undefined) {
+      subUpdate.contextTags = Array.isArray(data.context_tags) ? JSON.stringify(data.context_tags) : String(data.context_tags);
+    }
     if (data.context_other !== undefined) subUpdate.contextOther = String(data.context_other);
     if (medName !== undefined) subUpdate.medicationName = medName;
-    if (takenAgo !== undefined) subUpdate.medicationTakenAgo = takenAgo;
+    if (takenAgo !== undefined) subUpdate.medicationTakenAgo = takenAgo === null ? null : String(takenAgo);
     if (medUnit !== undefined) subUpdate.medicationUnit = medUnit;
     if (data.notes !== undefined) subUpdate.notes = data.notes;
     if (Object.keys(subUpdate).length > 0) {
@@ -2036,9 +2198,9 @@ class PatientFlowService {
   }
 
   async deleteLesionLocation(user, locationId) {
-    const lid = parseInt(locationId, 10);
+    const lid = parsePositiveIntId(locationId, 'Mã vị trí tổn thương');
     const res = await db.query(
-      `SELECT v.*, d.ma_benh_nhan
+      `SELECT v.*, d.ma_benh_nhan, d.ma_ho_so_man
        FROM public.vitritonthuong v
        JOIN public.dottonthuongda d ON v.ma_dot_ton_thuong_da = d.ma_dot_ton_thuong_da
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
@@ -2046,6 +2208,7 @@ class PatientFlowService {
     );
     if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
+    await this._ensureLesionRecordEditable(res.rows[0], user);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_vi_tri_ton_thuong = $1', [lid]);
     await db.query('DELETE FROM public.vitritonthuong WHERE ma_vi_tri_ton_thuong = $1', [lid]);
@@ -2072,7 +2235,8 @@ class PatientFlowService {
       maHoSo = Number(hs.ma_ho_so);
     }
 
-    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const decodedOriginalName = decodeMulterFilename(file.originalname || '');
+    const ext = path.extname(decodedOriginalName || '').toLowerCase() || '.jpg';
     const randomName = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
     const folder = maHoSo > 0 ? `records/${maHoSo}` : `users/${user.ma_tai_khoan}`;
     const storagePath = `${folder}/${randomName}`;
@@ -2090,7 +2254,7 @@ class PatientFlowService {
 
     const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(storagePath);
     const publicUrl = pubData?.publicUrl || '';
-    const origName = file.originalname || randomName;
+    const origName = decodedOriginalName || randomName;
     const mime = file.mimetype || 'image/jpeg';
     const mediaType = body.media_type || (mime.startsWith('image/') ? 'image' : 'document');
     const category = body.category || body.purpose || body.phan_loai_muc_dich || null;

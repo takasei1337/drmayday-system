@@ -5,6 +5,7 @@ const { errorResponse } = require('../../common/response');
 const authController = require('../auth/auth.controller');
 const patientController = require('./patient.controller');
 const flowController = require('./patientFlow.controller');
+const { decodeMulterFilename } = require('./patient.helpers');
 
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 const upload = multer({
@@ -27,6 +28,9 @@ const uploadSingleMiddleware = (req, res, next) => {
       const code = err.code === 'LIMIT_FILE_SIZE' ? 1006 : (err.code || 1004);
       return errorResponse(res, err.message, err.statusCode || 400, code, err);
     }
+    if (req.file && req.file.originalname) {
+      req.file.originalname = decodeMulterFilename(req.file.originalname);
+    }
     return next();
   });
 };
@@ -39,6 +43,11 @@ const uploadMultipleMiddleware = (req, res, next) => {
           ? 1006
           : (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT' ? 1008 : err.code || 1004);
       return errorResponse(res, err.message, err.statusCode || 400, code, err);
+    }
+    if (Array.isArray(req.files)) {
+      req.files.forEach((f) => {
+        if (f && f.originalname) f.originalname = decodeMulterFilename(f.originalname);
+      });
     }
     return next();
   });
@@ -107,9 +116,10 @@ function mountPatientFlowRoutes(app) {
   medRecRouter.get('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'DIEU_DUONG', 'ADMIN']), flowController.getRecordDetail);
   medRecRouter.put('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.updateRecord);
   medRecRouter.patch('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.updateRecord);
-  medRecRouter.delete('/:id', authorize(['BENH_NHAN', 'BAC_SI', 'ADMIN']), flowController.deleteRecord);
+  medRecRouter.delete('/:id', authorize(['ADMIN']), flowController.deleteRecord);
   app.use('/api/v1/medical_records', medRecRouter);
   app.use('/api/v1/medical-records', medRecRouter);
+  app.use('/api/medical_records', medRecRouter);
 
   // 6. Cận lâm sàng & Đơn thuốc (medrec12, medrec13)
   const labReqRouter = express.Router();

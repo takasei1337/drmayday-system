@@ -17,7 +17,82 @@ function isValidVNPhone(phone) {
 
 function isValid10DigitPhone(phone) {
   if (!phone || typeof phone !== 'string') return false;
-  return /^[0-9]{10}$/.test(phone.trim());
+  return /^(0[235789])[0-9]{8}$/.test(phone.trim());
+}
+
+function parsePositiveIntId(raw, fieldLabel = 'ID') {
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    throw createAppError(`Thiếu ${fieldLabel}`, 1002, 400);
+  }
+  if (typeof raw === 'object' || typeof raw === 'boolean') {
+    throw createAppError(`${fieldLabel} phải là số nguyên`, 1003, 400);
+  }
+  const str = String(raw).trim();
+  if (!/^-?\d+$/.test(str)) {
+    throw createAppError(`${fieldLabel} phải là số nguyên`, 1003, 400);
+  }
+  const num = Number(str);
+  if (!Number.isSafeInteger(num) || num <= 0 || num > 2147483647) {
+    throw createAppError(`${fieldLabel} phải là số nguyên dương hợp lệ`, 1004, 400);
+  }
+  return num;
+}
+
+function validateDateYmdOrIso(raw, fieldLabel = 'Ngày') {
+  if (raw === null || String(raw).trim() === '') return null;
+  if (typeof raw !== 'string') {
+    throw createAppError(`${fieldLabel} phải là chuỗi ngày (YYYY-MM-DD)`, 1003, 400);
+  }
+  const str = raw.trim();
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (!m) {
+    throw createAppError(`${fieldLabel} không đúng định dạng YYYY-MM-DD`, 1004, 400);
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) {
+    throw createAppError(`${fieldLabel} không hợp lệ`, 1004, 400);
+  }
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() + 1 !== mo || dt.getUTCDate() !== d) {
+    throw createAppError(`${fieldLabel} không tồn tại trên lịch`, 1004, 400);
+  }
+  if (str.length > 10 && Number.isNaN(new Date(str).getTime())) {
+    throw createAppError(`${fieldLabel} không hợp lệ`, 1004, 400);
+  }
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function parseValidDateTime(raw, fieldLabel = 'Thời gian') {
+  if (raw === undefined) return undefined;
+  if (raw === null || String(raw).trim() === '') return null;
+  if (typeof raw !== 'string') {
+    throw createAppError(`${fieldLabel} phải là chuỗi ngày giờ hợp lệ`, 1003, 400);
+  }
+  const str = raw.trim();
+  const datePartMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (datePartMatch) {
+    validateDateYmdOrIso(str, fieldLabel);
+  }
+  const parsed = new Date(str);
+  if (Number.isNaN(parsed.getTime())) {
+    throw createAppError(`${fieldLabel} không hợp lệ`, 1004, 400);
+  }
+  return parsed;
+}
+
+function decodeMulterFilename(rawName) {
+  if (!rawName || typeof rawName !== 'string') return rawName;
+  if (!/[^\u0000-\u00ff]/.test(rawName) && /[\u0080-\u00ff]/.test(rawName)) {
+    try {
+      const decoded = Buffer.from(rawName, 'latin1').toString('utf8');
+      if (decoded && !decoded.includes('\uFFFD')) {
+        return decoded;
+      }
+    } catch {}
+  }
+  return rawName;
 }
 
 /**
@@ -125,5 +200,9 @@ module.exports = {
   isPatientRole,
   toNumber,
   resolvePatientIdForUser,
+  parsePositiveIntId,
+  validateDateYmdOrIso,
+  parseValidDateTime,
+  decodeMulterFilename,
 };
 

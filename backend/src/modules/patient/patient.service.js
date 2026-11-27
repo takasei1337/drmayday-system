@@ -8,6 +8,8 @@ const {
   normalizeCareer,
   isStaffRole,
   resolvePatientIdForUser,
+  parsePositiveIntId,
+  parseValidDateTime,
 } = require('./patient.helpers');
 
 /**
@@ -166,10 +168,7 @@ class PatientService {
    * Kiểm tra quyền truy cập dữ liệu của 1 bệnh nhân (Self-only với BENH_NHAN -> 3106)
    */
   async assertPatientAccess(user, targetPatientId) {
-    const pid = parseInt(targetPatientId, 10);
-    if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 1004, 400);
-    }
+    const pid = parsePositiveIntId(targetPatientId, 'Mã bệnh nhân');
     if (isStaffRole(user)) return pid;
 
     const myPatientId = await resolvePatientIdForUser(db, user);
@@ -187,10 +186,7 @@ class PatientService {
    * pat02 / docpat02: Chi tiết 1 bệnh nhân (Main DB + Sub DB + danh sách hồ sơ tóm tắt)
    */
   async getBenhNhanById(patientId, includeRecords = false) {
-    const pid = parseInt(patientId, 10);
-    if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 1004, 400);
-    }
+    const pid = parsePositiveIntId(patientId, 'Mã bệnh nhân');
 
     const res = await db.query(
       `SELECT
@@ -478,10 +474,7 @@ class PatientService {
       throw createAppError('loai_benh_an phải là CAP hoặc MAN', 1004, 400);
     }
 
-    const pid = parseInt(maBenhNhan, 10);
-    if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 1002, 400);
-    }
+    const pid = parsePositiveIntId(maBenhNhan, 'Mã bệnh nhân');
 
     // Kiểm tra bệnh nhân tồn tại
     const patCheck = await db.query('SELECT ma_benh_nhan FROM public.benhnhan WHERE ma_benh_nhan = $1 LIMIT 1', [pid]);
@@ -490,11 +483,27 @@ class PatientService {
     }
 
     const allowedStatus = ['draft', 'pending', 'in_progress', 'completed', 'cancelled'];
-    const trangThai = allowedStatus.includes(data.trang_thai) ? data.trang_thai : 'draft';
-    const thoiGianKhoiPhatTuan =
-      data.thoi_gian_khoi_phat_tuan !== undefined && data.thoi_gian_khoi_phat_tuan !== null
-        ? Number(data.thoi_gian_khoi_phat_tuan)
-        : null;
+    const rawStatus = data.status !== undefined ? data.status : data.trang_thai;
+    if (rawStatus !== undefined && rawStatus !== null && String(rawStatus).trim() !== '' && !allowedStatus.includes(String(rawStatus).trim())) {
+      throw createAppError('Trạng thái bệnh án không hợp lệ', 1004, 400);
+    }
+    const trangThai = rawStatus && allowedStatus.includes(String(rawStatus).trim()) ? String(rawStatus).trim() : 'draft';
+
+    let thoiGianKhoiPhatTuan = null;
+    if (data.thoi_gian_khoi_phat_tuan !== undefined && data.thoi_gian_khoi_phat_tuan !== null && data.thoi_gian_khoi_phat_tuan !== '') {
+      const weeksNum = Number(data.thoi_gian_khoi_phat_tuan);
+      if (Number.isNaN(weeksNum) || !Number.isFinite(weeksNum) || weeksNum < 0) {
+        throw createAppError('thoi_gian_khoi_phat_tuan phải là số không âm', 1004, 400);
+      }
+      thoiGianKhoiPhatTuan = Math.trunc(weeksNum);
+    }
+
+    const thoiDiemKham = data.thoi_diem_kham_lan_dau
+      ? parseValidDateTime(data.thoi_diem_kham_lan_dau, 'thoi_diem_kham_lan_dau')
+      : new Date();
+    if (data.nhap_vien !== undefined && data.nhap_vien !== null && typeof data.nhap_vien !== 'boolean') {
+      throw createAppError('nhap_vien phải là giá trị boolean', 1003, 400);
+    }
 
     const client = await db.pool.connect();
     let createdRow;
@@ -520,7 +529,7 @@ class PatientService {
       const hsRes = await client.query(insertQuery, [
         pid,
         loaiBenhAn,
-        data.thoi_diem_kham_lan_dau || new Date(),
+        thoiDiemKham,
         data.chan_doan_tuyen_truoc || null,
         data.chan_doan_ban_dau_phong_kham || null,
         thoiGianKhoiPhatTuan,

@@ -8,6 +8,7 @@ const {
   isValid10DigitPhone,
   normalizeDbGender,
   normalizeCareer,
+  validateDateYmdOrIso,
 } = require('../patient/patient.helpers');
 
 /**
@@ -543,7 +544,16 @@ class AuthService {
       extra = await prisma.patientExtraProfile.findUnique({
         where: { maNguoi: BigInt(row.ma_nguoi) },
       });
-    } catch {}
+    } catch (subErr) {
+      if (subErr?.code === 'P2022' || String(subErr?.message || '').includes('career_raw')) {
+        try {
+          await prisma.$executeRawUnsafe('ALTER TABLE public.patient_extra_profiles ADD COLUMN IF NOT EXISTS career_raw TEXT');
+          extra = await prisma.patientExtraProfile.findUnique({
+            where: { maNguoi: BigInt(row.ma_nguoi) },
+          });
+        } catch {}
+      }
+    }
 
     const birthYear =
       extra?.yearOfBirth ||
@@ -569,7 +579,7 @@ class AuthService {
       role_id: Number(row.ma_vai_tro),
       gender: extra?.genderRaw || row.gioi_tinh || null,
       year_of_birth: birthYear,
-      career: row.nghe_nghiep || null,
+      career: extra?.careerRaw !== undefined ? extra.careerRaw : (row.nghe_nghiep || null),
       ethnic: row.dan_toc || null,
       hamlet_address: row.dia_chi_so_nha_thon_pho || null,
       commune_address: row.dia_chi_xa_phuong || null,
@@ -604,6 +614,14 @@ class AuthService {
     }
 
     const fullName = data.full_name !== undefined ? data.full_name : data.ho_ten;
+    if (fullName !== undefined) {
+      if (fullName === null || typeof fullName !== 'string') {
+        throw createAppError('Họ tên phải là chuỗi ký tự', 1003, 400);
+      }
+      if (fullName.trim() === '') {
+        throw createAppError('Họ tên không được để trống', 1004, 400);
+      }
+    }
     const phone = data.phone !== undefined ? data.phone : data.so_dien_thoai;
     const genderInput = data.gender !== undefined ? data.gender : data.gioi_tinh;
     const genderInfo = genderInput !== undefined ? normalizeDbGender(genderInput) : { provided: false };
@@ -625,13 +643,16 @@ class AuthService {
     const ngaySinhInput = data.ngay_sinh !== undefined ? data.ngay_sinh : data.date_of_birth;
     const ngaySinh =
       ngaySinhInput !== undefined
-        ? ngaySinhInput
+        ? validateDateYmdOrIso(ngaySinhInput, 'Ngày sinh')
         : yearOfBirth
         ? `${yearOfBirth}-01-01`
         : undefined;
 
     if (phone !== undefined && phone !== null && String(phone).trim() !== '') {
-      const cleanPhone = String(phone).trim();
+      if (typeof phone !== 'string') {
+        throw createAppError('Số điện thoại phải là chuỗi ký tự', 1003, 400);
+      }
+      const cleanPhone = phone.trim();
       if (!isValidVNPhone(cleanPhone)) {
         throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 1004, 400);
       }
@@ -647,15 +668,31 @@ class AuthService {
       }
     }
 
-    const nextOfKinPhone =
+    const nextOfKinPhoneRaw =
       data.next_of_kin_phone !== undefined ? data.next_of_kin_phone : data.nguoi_nha_so_dien_thoai;
-    if (nextOfKinPhone !== undefined && nextOfKinPhone !== null && String(nextOfKinPhone).trim() !== '') {
-      if (!isValid10DigitPhone(String(nextOfKinPhone))) {
-        throw createAppError('Số điện thoại người thân phải đúng 10 chữ số', 1004, 400);
+    let nextOfKinPhoneNormalized;
+    if (nextOfKinPhoneRaw !== undefined) {
+      if (nextOfKinPhoneRaw === null || String(nextOfKinPhoneRaw).trim() === '') {
+        nextOfKinPhoneNormalized = null;
+      } else if (typeof nextOfKinPhoneRaw !== 'string') {
+        throw createAppError('Số điện thoại người thân phải là chuỗi ký tự', 1003, 400);
+      } else {
+        const cleanKin = nextOfKinPhoneRaw.trim();
+        if (!isValid10DigitPhone(cleanKin)) {
+          throw createAppError('Số điện thoại người thân không hợp lệ (phải đúng 10 chữ số VN, bắt đầu bằng 02/03/05/07/08/09)', 1004, 400);
+        }
+        nextOfKinPhoneNormalized = cleanKin;
       }
     }
 
     const careerInput = data.career !== undefined ? data.career : data.nghe_nghiep;
+    if (careerInput !== undefined && careerInput !== null && typeof careerInput !== 'string') {
+      throw createAppError('Nghề nghiệp phải là chuỗi ký tự', 1003, 400);
+    }
+    const careerRaw =
+      careerInput !== undefined
+        ? (careerInput === null || careerInput.trim() === '' ? null : careerInput.trim())
+        : undefined;
     const career = careerInput !== undefined ? normalizeCareer(careerInput) : undefined;
     const ethnicity =
       data.ethnicity !== undefined
@@ -663,16 +700,24 @@ class AuthService {
         : data.ethnic !== undefined
         ? data.ethnic
         : data.dan_toc;
-    const bhyt =
+    const bhytRaw =
       data.health_insurance_number !== undefined ? data.health_insurance_number : data.bhyt_so_the;
+    const bhyt =
+      bhytRaw !== undefined
+        ? (bhytRaw === null || String(bhytRaw).trim() === '' ? null : String(bhytRaw).trim())
+        : undefined;
     const nextOfKinName =
       data.nguoi_nha_ho_ten_dia_chi !== undefined
         ? data.nguoi_nha_ho_ten_dia_chi
         : data.next_of_kin_name !== undefined
         ? data.next_of_kin_name
         : data.nguoi_nha_ho_ten;
-    const bhytValidate =
+    const bhytValidateRaw =
       data.bhyt_gia_tri_den !== undefined ? data.bhyt_gia_tri_den : data.health_insurance_validate;
+    const bhytValidate =
+      bhytValidateRaw !== undefined
+        ? validateDateYmdOrIso(bhytValidateRaw, 'Ngày hết hạn BHYT')
+        : undefined;
 
     const tinhTp =
       data.tinh_tp !== undefined
@@ -752,14 +797,9 @@ class AuthService {
         pushBn('nghe_nghiep', career);
         pushBn('dan_toc', ethnicity);
         pushBn('bhyt_so_the', bhyt);
-        pushBn('bhyt_gia_tri_den', bhytValidate && /^\d{4}-\d{2}-\d{2}/.test(String(bhytValidate)) ? String(bhytValidate).slice(0, 10) : undefined);
+        pushBn('bhyt_gia_tri_den', bhytValidate);
         pushBn('nguoi_nha_ho_ten_dia_chi', nextOfKinName);
-        pushBn(
-          'nguoi_nha_so_dien_thoai',
-          nextOfKinPhone !== undefined && nextOfKinPhone !== null && String(nextOfKinPhone).trim() === ''
-            ? null
-            : nextOfKinPhone
-        );
+        pushBn('nguoi_nha_so_dien_thoai', nextOfKinPhoneNormalized);
 
         if (bnSets.length > 0) {
           bnVals.push(acc.ma_benh_nhan);
@@ -782,12 +822,13 @@ class AuthService {
     const extraUpdate = {};
     if (genderInfo.provided) extraUpdate.genderRaw = genderInfo.rawValue || null;
     if (yearOfBirth !== undefined) extraUpdate.yearOfBirth = yearOfBirth;
+    if (careerRaw !== undefined) extraUpdate.careerRaw = careerRaw;
     if (data.work_place !== undefined) extraUpdate.workPlace = data.work_place;
     if (data.first_visit !== undefined) {
       extraUpdate.firstVisit = data.first_visit ? new Date(data.first_visit) : null;
     }
-    if (data.health_insurance_validate !== undefined) {
-      extraUpdate.healthInsuranceValidate = data.health_insurance_validate;
+    if (bhytValidate !== undefined) {
+      extraUpdate.healthInsuranceValidate = bhytValidate;
     }
     if (data.medical_history !== undefined) extraUpdate.medicalHistory = data.medical_history;
     if (data.allergy_history !== undefined) extraUpdate.allergyHistory = data.allergy_history;
@@ -800,7 +841,20 @@ class AuthService {
           update: extraUpdate,
         });
       } catch (subErr) {
-        console.warn('[UpdateProfile Warning] Lỗi cập nhật Sub DB:', subErr.message);
+        if (subErr?.code === 'P2022' || String(subErr?.message || '').includes('career_raw')) {
+          try {
+            await prisma.$executeRawUnsafe('ALTER TABLE public.patient_extra_profiles ADD COLUMN IF NOT EXISTS career_raw TEXT');
+            await prisma.patientExtraProfile.upsert({
+              where: { maNguoi: BigInt(acc.ma_nguoi) },
+              create: { maNguoi: BigInt(acc.ma_nguoi), ...extraUpdate },
+              update: extraUpdate,
+            });
+          } catch (retryErr) {
+            console.warn('[UpdateProfile Warning] Lỗi cập nhật Sub DB:', retryErr.message);
+          }
+        } else {
+          console.warn('[UpdateProfile Warning] Lỗi cập nhật Sub DB:', subErr.message);
+        }
       }
     }
 

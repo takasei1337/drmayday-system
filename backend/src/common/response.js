@@ -66,6 +66,11 @@ const DB_ERROR_STRINGS = new Set([
   'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH',
   'P1001', 'P1002', 'P1008', 'P1017', '08001', '08006', '57P01', '57P02', '57P03',
 ]);
+const PG_INVALID_VALUE_CODES = new Set([
+  '22P02', '22007', '22008', '22003', '22001', '23514', 'P2000', 'P2007',
+]);
+const PG_NOT_FOUND_CODES = new Set(['23503', 'P2025']);
+const PG_CONFLICT_CODES = new Set(['23505', 'P2002']);
 
 function resolveMergedCode(rawCode, statusCode = 500, errorObj = null) {
   const errCodeStr = typeof rawCode === 'string'
@@ -77,6 +82,9 @@ function resolveMergedCode(rawCode, statusCode = 500, errorObj = null) {
   if (DB_ERROR_STRINGS.has(errCodeStr) || /^P10\d\d$/.test(errCodeStr) || /^08\d{3}$/.test(errCodeStr)) {
     return 1001;
   }
+  if (PG_INVALID_VALUE_CODES.has(errCodeStr)) return 1004;
+  if (PG_NOT_FOUND_CODES.has(errCodeStr)) return 9992;
+  if (PG_CONFLICT_CODES.has(errCodeStr)) return 9996;
 
   const num = Number(rawCode);
   if (!Number.isNaN(num) && num > 0) {

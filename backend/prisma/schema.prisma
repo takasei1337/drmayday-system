@@ -171,6 +171,7 @@ model PatientExtraProfile {
   maNguoi                 BigInt    @id @map("ma_nguoi")
   genderRaw               String?   @map("gender_raw") // Hỗ trợ 'other' ngoài ('Nam','Nu') của Main DB
   yearOfBirth             Int?      @map("year_of_birth")
+  careerRaw               String?   @map("career_raw") // Giữ giá trị nghề nghiệp gốc người dùng nhập
   workPlace               String?   @map("work_place")
   firstVisit              DateTime? @map("first_visit")
   healthInsuranceValidate String?   @map("health_insurance_validate")
