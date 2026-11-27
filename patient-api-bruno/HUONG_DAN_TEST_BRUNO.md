@@ -65,7 +65,7 @@ Các biến dùng chung trong `Local`: `baseUrl` (`http://localhost:5000/api/v1`
 ### Lưu ý thứ tự khi chạy tay từng request:
 1. **Khởi động & Auth (`00-Health` ➔ `01-Auth`)**:
    * Chạy `01-Signup-Patient` (tự sinh SĐT ngẫu nhiên & lưu `patientId`), `02-Login-Patient` (tự lưu `patientToken`), `03-Login-Doctor` (`doctorToken`), `04-Login-Admin` (`adminToken`).
-   * *Chạy `07-Logout` cuối cùng sau khi test xong mọi module* vì token sau logout sẽ bị chặn (`401`, mã `3001`).
+   * *Chạy `07-Logout` cuối cùng sau khi test xong mọi module* vì token sau logout sẽ bị chặn (`401`, mã `9998`).
 2. **Profile & Templates (`02-Profile` ➔ `06-Templates`)**: Chạy lần lượt các request `GET`/`PUT`.
 3. **Bệnh án, Cận lâm sàng & Đơn thuốc (`07` ➔ `09`)**:
    * Chạy `07/01` ➔ `07/11` (`accept`) để tự gán `recordId` và `answerId`.
@@ -84,10 +84,23 @@ Các biến dùng chung trong `Local`: `baseUrl` (`http://localhost:5000/api/v1`
   * Riêng `POST /medical_records/:id/answer`: `{ "code": 1000, "message": "...", "count": <number> }`.
   * Riêng `POST /image-attachments/upload-multiple` & `POST /answer-images/bulk`: `{ "code": 1000, "message": "...", "total": <number>, "data": [...] }`.
   * Riêng `GET /image-attachments/view/:id`: trả trực tiếp luồng binary ảnh (`Content-Type: image/*`).
-* **Một số mã lỗi nghiệp vụ:**
-  * `1000`: Thành công
-  * `2001` / `2003` / `2004`: Thiếu tham số / Dữ liệu hoặc SĐT không hợp lệ (`400`)
-  * `3001` / `3007`: Chưa đăng nhập hoặc token đã logout (`401`) / Không tìm thấy tài nguyên (`404`)
-  * `3106`: Không có quyền truy cập tài nguyên của người khác (`403`)
-  * `4003`: Hồ sơ đã đóng/khóa (`pending`/`in_progress`/`completed`), bệnh nhân không thể sửa (`400`)
-  * `4009`: Dữ liệu trùng lặp (ví dụ chấm UAS7 trùng ngày khi chưa bật `overwrite: true`, `409`)
+* **Bảng mã phản hồi đã gộp chuẩn GoogleSheet (`3. response code`):**
+  * `1000`: `OK` — Xử lý thành công
+  * `9992`: `Post is not existed` — Đối tượng không tồn tại *(gộp từ `3007, 4001, 4008, 4101, 4103, 4104, 6005, 7001, 7002, 7003, 8103, 9102`)*
+  * `9993`: `Code verify is incorrect` — Mã xác thực không đúng *(gộp từ `3004, 3005`)*
+  * `9994`: `No Data or end of list data` — Không có dữ liệu / Hết dữ liệu *(gộp từ `4002, 5001`)*
+  * `9995`: `User is not validated` — Người dùng chưa xác thực *(gộp từ `3008, 3009`)*
+  * `9996`: `User existed` — Người dùng / Dữ liệu đã tồn tại *(gộp từ `3006, 4102`)*
+  * `9997`: `Method is invalid` — Phương thức không đúng
+  * `9998`: `Token is invalid` — Sai token / hết hạn / đã logout *(gộp từ `3001, 3002, 3003`)*
+  * `9999`: `Exception error.` — Lỗi exception *(gộp từ `9001, 9002, 9901, 9903`)*
+  * `1001`: `Can not connect to DB` — Lỗi mất kết nối DB / thực thi SQL *(gộp từ `9902`)*
+  * `1002`: `Parameter is not enough` — Thiếu tham số *(gộp từ `2001, 4006, 4007, 5005, 6001, 7004, 7005, 8001, 8002, 8101, 8102, 9101`)*
+  * `1003`: `Parameter type is invalid.` — Kiểu tham số không đúng *(gộp từ `2002, 2007, 6002`)*
+  * `1004`: `Parameter value is invalid.` — Giá trị tham số không hợp lệ *(gộp từ `2003, 2004, 2005, 2006, 4004, 4009, 5003, 5004, 7006, 7007, 9003`)*
+  * `1005`: `Unknown error`
+  * `1006`: `File size is too big.` — Cỡ file vượt mức cho phép *(gộp từ `6003`)*
+  * `1007`: `Upload File Failed!.` — Upload thất bại *(gộp từ `6007`)*
+  * `1008`: `Maximum number of images.` — Số lượng ảnh vượt quá quy định *(gộp từ `6004`)*
+  * `1009`: `Not access.` — Không có quyền truy cập tài nguyên *(gộp từ `3101, 3102, 3103, 3104, 3105, 3106`)*
+  * `1010`: `Action has been done previously` — Hành động đã thực hiện trước đó *(gộp từ `4003, 4005, 4105, 5002, 6006, 8003`)*

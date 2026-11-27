@@ -1,15 +1,10 @@
 const patientService = require('./patient.service');
 const patientFlowService = require('./patientFlow.service');
-const { successResponse, errorResponse } = require('../../common/response');
+const { successResponse, errorResponse, handleControllerError } = require('../../common/response');
 const { isStaffRole, resolvePatientIdForUser } = require('./patient.helpers');
 const db = require('../../config/db');
 
-function sendError(res, next, err) {
-  if (err && err.code) {
-    return errorResponse(res, err.message, err.statusCode || 400, err.code);
-  }
-  return next(err);
-}
+const sendError = handleControllerError;
 
 class PatientController {
   // pat01 / rec01: Danh sách bệnh nhân
@@ -70,7 +65,7 @@ class PatientController {
 
       const loaiBenhAn = req.body.loai_benh_an || req.body.record_type || req.body.type;
       if (!maBenhNhan || !loaiBenhAn) {
-        return errorResponse(res, 'Mã bệnh nhân và loại bệnh án là bắt buộc', 400, 2001);
+        return errorResponse(res, 'Mã bệnh nhân và loại bệnh án là bắt buộc', 400, 1002);
       }
 
       const data = await patientService.createHoSoBenhAn({ ...req.body, ma_benh_nhan: maBenhNhan }, req.user);

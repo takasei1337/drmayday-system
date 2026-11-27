@@ -36,7 +36,7 @@ class ClinicalController {
       const maChuKy = req.body.ma_chu_ky;
       const ngay = req.body.ngay_cham_diem || req.body.ngay_ghi_nhan || req.body.score_date;
       if (!maChuKy || !ngay) {
-        return errorResponse(res, 'Mã chu kỳ và ngày ghi nhận là bắt buộc', 400, 2001);
+        return errorResponse(res, 'Mã chu kỳ và ngày ghi nhận là bắt buộc', 400, 1002);
       }
       const data = await clinicalService.logUAS7Daily(req.body);
       return successResponse(res, data, 'Ghi nhận điểm UAS7 hằng ngày thành công', 201);

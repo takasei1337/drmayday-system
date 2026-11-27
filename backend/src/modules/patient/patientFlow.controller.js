@@ -1,14 +1,9 @@
 const patientFlowService = require('./patientFlow.service');
 const patientService = require('./patient.service');
 const templateSeed = require('./templateSeed.service');
-const { successResponse, errorResponse, sheetSuccess, sheetRawSuccess } = require('../../common/response');
+const { successResponse, errorResponse, sheetSuccess, sheetRawSuccess, handleControllerError } = require('../../common/response');
 
-function handleErr(res, next, err) {
-  if (err && err.code) {
-    return errorResponse(res, err.message, err.statusCode || 400, err.code);
-  }
-  return next(err);
-}
+const handleErr = handleControllerError;
 
 class PatientFlowController {
   // ---- Red Flag Screening ----
@@ -54,7 +49,7 @@ class PatientFlowController {
     try {
       const row = await templateSeed.getTemplateByIdOrCode(req.params.id);
       if (!row) {
-        return errorResponse(res, `Không tìm thấy mẫu bệnh án #${req.params.id}`, 404, 4101);
+        return errorResponse(res, `Không tìm thấy mẫu bệnh án #${req.params.id}`, 404, 9992);
       }
       return sheetSuccess(res, templateSeed.formatTemplateDetail(row), 'Lấy mẫu bệnh án thành công');
     } catch (err) {

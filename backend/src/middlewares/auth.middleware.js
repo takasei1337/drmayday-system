@@ -8,12 +8,12 @@ const prisma = require('../config/prisma');
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader) {
-    return errorResponse(res, 'Chưa đăng nhập (Thiếu header Authorization)', 401, 3003);
+    return errorResponse(res, 'Chưa đăng nhập (Thiếu header Authorization)', 401, 9998);
   }
 
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return errorResponse(res, 'Định dạng token không đúng chuẩn: Bearer <token>', 401, 3001);
+    return errorResponse(res, 'Định dạng token không đúng chuẩn: Bearer <token>', 401, 9998);
   }
 
   const token = parts[1];
@@ -28,7 +28,7 @@ const authenticate = async (req, res, next) => {
       });
 
       if (blacklisted) {
-        return errorResponse(res, 'Token này đã bị thu hồi do đăng xuất. Vui lòng đăng nhập lại.', 401, 3001);
+        return errorResponse(res, 'Token này đã bị thu hồi do đăng xuất. Vui lòng đăng nhập lại.', 401, 9998);
       }
     } catch (dbErr) {
       if (process.env.NODE_ENV === 'development') {
@@ -41,9 +41,9 @@ const authenticate = async (req, res, next) => {
     return next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      return errorResponse(res, 'Token đã hết hạn, vui lòng đăng nhập lại', 401, 3002);
+      return errorResponse(res, 'Token đã hết hạn, vui lòng đăng nhập lại', 401, 9998);
     }
-    return errorResponse(res, 'Token không hợp lệ hoặc đã bị thay đổi', 401, 3001);
+    return errorResponse(res, 'Token không hợp lệ hoặc đã bị thay đổi', 401, 9998);
   }
 };
 
@@ -55,7 +55,7 @@ const authenticate = async (req, res, next) => {
 const authorize = (roles = []) => {
   return (req, res, next) => {
     if (!req.user) {
-      return errorResponse(res, 'Người dùng chưa được xác thực', 401, 3003);
+      return errorResponse(res, 'Người dùng chưa được xác thực', 401, 9998);
     }
 
     if (roles.length > 0) {
@@ -63,12 +63,11 @@ const authorize = (roles = []) => {
       const allowedRoles = roles.map(r => r.toLowerCase().trim());
 
       if (!allowedRoles.includes(userRole)) {
-        const isNeedAdmin = allowedRoles.includes('admin');
         return errorResponse(
           res,
           `Quyền truy cập bị từ chối. Chức năng yêu cầu quyền: ${roles.join(', ')}`,
           403,
-          isNeedAdmin ? 3102 : 3101
+          1009
         );
       }
     }

@@ -1,10 +1,11 @@
 /**
  * Shared normalization, validation, and RBAC helpers for Auth & Patient modules.
  */
+const { resolveMergedCode } = require('../../common/response');
 
-function createAppError(message, code = 2003, statusCode = 400) {
+function createAppError(message, code = 1004, statusCode = 400) {
   const err = new Error(message);
-  err.code = code;
+  err.code = resolveMergedCode(code, statusCode);
   err.statusCode = statusCode;
   return err;
 }

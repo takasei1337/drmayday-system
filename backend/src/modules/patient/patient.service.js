@@ -168,19 +168,19 @@ class PatientService {
   async assertPatientAccess(user, targetPatientId) {
     const pid = parseInt(targetPatientId, 10);
     if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 2003, 400);
+      throw createAppError('Mã bệnh nhân không hợp lệ', 1004, 400);
     }
     if (isStaffRole(user)) return pid;
 
     const myPatientId = await resolvePatientIdForUser(db, user);
     const myAccountId = user?.ma_tai_khoan ? Number(user.ma_tai_khoan) : null;
     if (!myPatientId) {
-      throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 3106, 403);
+      throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 1009, 403);
     }
     if (pid === myPatientId || (myAccountId && pid === myAccountId)) {
       return myPatientId;
     }
-    throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 3106, 403);
+    throw createAppError('Không có quyền truy cập hồ sơ của bệnh nhân khác', 1009, 403);
   }
 
   /**
@@ -189,7 +189,7 @@ class PatientService {
   async getBenhNhanById(patientId, includeRecords = false) {
     const pid = parseInt(patientId, 10);
     if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 2003, 400);
+      throw createAppError('Mã bệnh nhân không hợp lệ', 1004, 400);
     }
 
     const res = await db.query(
@@ -208,7 +208,7 @@ class PatientService {
     );
     const row = res.rows[0];
     if (!row) {
-      throw createAppError(`Không tìm thấy bệnh nhân #${pid}`, 3007, 404);
+      throw createAppError(`Không tìm thấy bệnh nhân #${pid}`, 9992, 404);
     }
 
     let extra = null;
@@ -266,7 +266,7 @@ class PatientService {
         const yob = parseInt(data.year_of_birth, 10);
         const currentYear = new Date().getFullYear();
         if (Number.isNaN(yob) || yob < 1900 || yob > currentYear) {
-          throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 2003, 400);
+          throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 1004, 400);
         }
         yearOfBirth = yob;
       }
@@ -283,7 +283,7 @@ class PatientService {
     if (phone !== undefined && phone !== null && String(phone).trim() !== '') {
       const cleanPhone = String(phone).trim();
       if (!isValidVNPhone(cleanPhone)) {
-        throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 2004, 400);
+        throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 1004, 400);
       }
     }
 
@@ -291,7 +291,7 @@ class PatientService {
       data.next_of_kin_phone !== undefined ? data.next_of_kin_phone : data.nguoi_nha_so_dien_thoai;
     if (nextOfKinPhone !== undefined && nextOfKinPhone !== null && String(nextOfKinPhone).trim() !== '') {
       if (!isValid10DigitPhone(String(nextOfKinPhone))) {
-        throw createAppError('Số điện thoại người thân phải đúng 10 chữ số', 2004, 400);
+        throw createAppError('Số điện thoại người thân phải đúng 10 chữ số', 1004, 400);
       }
     }
 
@@ -475,18 +475,18 @@ class PatientService {
       loaiBenhAn = recordSubtype.toUpperCase().includes('ACUTE') ? 'CAP' : 'MAN';
     }
     if (!['CAP', 'MAN'].includes(loaiBenhAn)) {
-      throw createAppError('loai_benh_an phải là CAP hoặc MAN', 2003, 400);
+      throw createAppError('loai_benh_an phải là CAP hoặc MAN', 1004, 400);
     }
 
     const pid = parseInt(maBenhNhan, 10);
     if (Number.isNaN(pid) || pid <= 0) {
-      throw createAppError('Mã bệnh nhân không hợp lệ', 2001, 400);
+      throw createAppError('Mã bệnh nhân không hợp lệ', 1002, 400);
     }
 
     // Kiểm tra bệnh nhân tồn tại
     const patCheck = await db.query('SELECT ma_benh_nhan FROM public.benhnhan WHERE ma_benh_nhan = $1 LIMIT 1', [pid]);
     if (patCheck.rows.length === 0) {
-      throw createAppError(`Không tìm thấy bệnh nhân #${pid}`, 3007, 404);
+      throw createAppError(`Không tìm thấy bệnh nhân #${pid}`, 9992, 404);
     }
 
     const allowedStatus = ['draft', 'pending', 'in_progress', 'completed', 'cancelled'];
@@ -650,7 +650,7 @@ class PatientService {
     const hsRes = await db.query('SELECT ma_ho_so, loai_benh_an FROM public.hosobenhan WHERE ma_ho_so = $1 LIMIT 1', [rid]);
     const hs = hsRes.rows[0];
     if (!hs) {
-      throw createAppError(`Không tìm thấy hồ sơ bệnh án #${rid}`, 3007, 404);
+      throw createAppError(`Không tìm thấy hồ sơ bệnh án #${rid}`, 9992, 404);
     }
 
     // Xác định mã bác sĩ hợp lệ trong public.nhanvien
@@ -661,7 +661,7 @@ class PatientService {
     if (nvCheck.rows.length === 0) {
       const fallbackNv = await db.query('SELECT ma_nhan_vien FROM public.nhanvien ORDER BY ma_nhan_vien ASC LIMIT 1');
       if (fallbackNv.rows.length === 0) {
-        throw createAppError('Chưa có nhân viên/bác sĩ nào trong bảng nhanvien để gán phiên khám', 2003, 400);
+        throw createAppError('Chưa có nhân viên/bác sĩ nào trong bảng nhanvien để gán phiên khám', 1004, 400);
       }
       maBacSi = fallbackNv.rows[0].ma_nhan_vien;
     }
