@@ -117,7 +117,7 @@ async function req(baseUrl, method, path, token = null, body = null) {
     assert(rmUpd.json.code === '1000' && rmUpd.json.data.name === 'Phong Verify 2', 'PUT /v1/rooms/:id');
 
     const brDelBlocked = await req(base, 'DELETE', `/v1/branches/${createdBranchId}`, adminToken);
-    assert(brDelBlocked.json.code === '1010', 'DELETE /v1/branches/:id while in use -> "1010"', JSON.stringify(brDelBlocked));
+    assert(brDelBlocked.json.code === '1009', 'DELETE /v1/branches/:id while in use -> "1009"', JSON.stringify(brDelBlocked));
 
     // Slide 3: Admin Users & RBAC
     const roleCreate = await req(base, 'POST', '/roles', adminToken, { name: `role_ver_${Date.now()}`, description: 'Test role', parent_role_id: 1 });

@@ -276,14 +276,14 @@ class TopologyService {
     ]);
 
     if (deptCount > 0 || roomRes.rows[0].cnt > 0 || staffRes.rows[0].cnt > 0) {
-      throw createSheetError('Chi nhánh đang có khoa/phòng/nhân viên trực thuộc', 1010, 409);
+      throw createSheetError('Chi nhánh đang có khoa/phòng/nhân viên trực thuộc', 1009);
     }
 
     try {
       await db.query('DELETE FROM public.chinhanh WHERE ma_chi_nhanh = $1', [branchId]);
     } catch (err) {
       if (err.code === '23503') {
-        throw createSheetError('Chi nhánh đang có khoa/phòng/nhân viên trực thuộc', 1010, 409);
+        throw createSheetError('Chi nhánh đang có khoa/phòng/nhân viên trực thuộc', 1009);
       }
       throw err;
     }
