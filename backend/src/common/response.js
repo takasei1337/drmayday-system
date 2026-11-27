@@ -62,6 +62,11 @@ const DETAIL_TO_MERGED_CODE = {
   4003: 1010, 4005: 1010, 4105: 1010, 5002: 1010, 6006: 1010, 8003: 1010,
 };
 
+const DB_ERROR_STRINGS = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH',
+  'P1001', 'P1002', 'P1008', 'P1017', '08001', '08006', '57P01', '57P02', '57P03',
+]);
+
 function mapToMergedCode(rawCode, fallbackCode = 1005) {
   const n = Number(rawCode);
   if (Number.isFinite(n)) {
@@ -69,6 +74,33 @@ function mapToMergedCode(rawCode, fallbackCode = 1005) {
     if (DETAIL_TO_MERGED_CODE[n]) return DETAIL_TO_MERGED_CODE[n];
   }
   return fallbackCode;
+}
+
+function resolveMergedCode(rawCode, statusCode = 500, errorObj = null) {
+  const errCodeStr = typeof rawCode === 'string'
+    ? rawCode.trim()
+    : (errorObj && typeof errorObj.code === 'string' ? errorObj.code.trim() : '');
+
+  if (errCodeStr === 'LIMIT_FILE_SIZE') return 1006;
+  if (errCodeStr === 'LIMIT_FILE_COUNT' || errCodeStr === 'LIMIT_UNEXPECTED_FILE') return 1008;
+  if (DB_ERROR_STRINGS.has(errCodeStr) || /^P10\d\d$/.test(errCodeStr) || /^08\d{3}$/.test(errCodeStr)) {
+    return 1001;
+  }
+
+  const num = Number(rawCode);
+  if (!Number.isNaN(num) && num > 0) {
+    if (DETAIL_TO_MERGED_CODE[num]) return DETAIL_TO_MERGED_CODE[num];
+    if (MERGED_RESPONSE_CODES[num]) return num;
+  }
+
+  if (statusCode === 401) return 9998;
+  if (statusCode === 403) return 1009;
+  if (statusCode === 404) return 9992;
+  if (statusCode === 405) return 9997;
+  if (statusCode === 409) return 9996;
+  if (statusCode === 400) return 1002;
+  if (statusCode >= 500) return 9999;
+  return 1005;
 }
 
 function createSheetError(message, code = 1005, statusCode = null) {
@@ -99,7 +131,7 @@ const sheetSuccess = (res, data = {}, message = 'OK', statusCode = 200, extraTop
  * Phản hồi lỗi chuẩn Sheet Tab 3 (Bảng mã gộp): { code: "<merged>", message, data: {} }
  */
 const sheetError = (res, message = null, statusCode = null, rawCode = 9999, data = {}) => {
-  const merged = mapToMergedCode(rawCode, statusCode === 400 ? 1002 : statusCode === 404 ? 9992 : 9999);
+  const merged = resolveMergedCode(rawCode, statusCode || 400);
   const def = MERGED_RESPONSE_CODES[merged] || MERGED_RESPONSE_CODES[9999];
   return res.status(statusCode || def.httpStatus || 400).json({
     code: String(merged),
@@ -113,22 +145,36 @@ const successResponse = (res, data = null, message = 'OK', statusCode = 200) => 
   return sheetSuccess(res, data, message, statusCode);
 };
 
-const errorResponse = (res, message = 'Exception error.', statusCode = 500, code = null) => {
-  return sheetError(res, message, statusCode, code || (statusCode === 400 ? 1002 : statusCode === 404 ? 9992 : 9999));
+const errorResponse = (res, message = 'Exception error.', statusCode = 500, code = null, error = null) => {
+  const resolved = resolveMergedCode(code, statusCode, error);
+  return sheetError(res, message, statusCode, resolved);
 };
 
 const sheetRawSuccess = (res, payload = {}, statusCode = 200) => {
   return res.status(statusCode).json(payload);
 };
 
+const handleControllerError = (res, next, err) => {
+  if (err && err.code) {
+    const fallbackStatus = typeof err.code === 'string' ? 500 : 400;
+    const code = resolveMergedCode(err.code, err.statusCode || fallbackStatus, err);
+    const statusCode = err.statusCode || (code === 1001 ? 503 : fallbackStatus);
+    return errorResponse(res, err.message, statusCode, code, err);
+  }
+  return next(err);
+};
+
 module.exports = {
   MERGED_RESPONSE_CODES,
   DETAIL_TO_MERGED_CODE,
+  LEGACY_TO_MERGED_CODE: DETAIL_TO_MERGED_CODE,
   mapToMergedCode,
+  resolveMergedCode,
   createSheetError,
   sheetSuccess,
   sheetError,
   successResponse,
   errorResponse,
   sheetRawSuccess,
+  handleControllerError,
 };

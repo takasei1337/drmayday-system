@@ -1,5 +1,5 @@
 const authService = require('./auth.service');
-const { sheetSuccess, errorResponse } = require('../../common/response');
+const { sheetSuccess, handleControllerError } = require('../../common/response');
 
 class AuthController {
   /**
@@ -10,10 +10,7 @@ class AuthController {
       const data = await authService.signup(req.body);
       return sheetSuccess(res, data, 'Created successfully', 201, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -29,10 +26,7 @@ class AuthController {
       const data = await authService.login(usernameOrPhone, pass);
       return sheetSuccess(res, data, 'Đăng nhập thành công', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -44,10 +38,7 @@ class AuthController {
       await authService.logout(req.token, req.user);
       return sheetSuccess(res, {}, 'Đăng xuất thành công', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -61,10 +52,7 @@ class AuthController {
       const data = await authService.forgotPassword(targetPhone);
       return sheetSuccess(res, data, 'Đã gửi hướng dẫn khôi phục', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -82,10 +70,7 @@ class AuthController {
       const data = await authService.changePassword(req.user.ma_tai_khoan, oldPass, newPass, confirmPass);
       return sheetSuccess(res, data, 'Đổi mật khẩu thành công', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -97,10 +82,7 @@ class AuthController {
       const data = await authService.createStaff(req.body);
       return sheetSuccess(res, data, 'Tạo tài khoản nhân viên y tế thành công', 201, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -112,10 +94,7 @@ class AuthController {
       const data = await authService.getProfile(req.user.ma_tai_khoan);
       return sheetSuccess(res, data, 'Lấy thông tin tài khoản thành công', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 
@@ -127,10 +106,7 @@ class AuthController {
       const data = await authService.updateProfile(req.user.ma_tai_khoan, req.body);
       return sheetSuccess(res, data, 'Cập nhật hồ sơ thành công', 200, 1000);
     } catch (err) {
-      if (err.code) {
-        return errorResponse(res, err.message, err.statusCode || 400, err.code);
-      }
-      next(err);
+      return handleControllerError(res, next, err);
     }
   }
 }

@@ -134,7 +134,7 @@ class PatientFlowService {
       [id]
     );
     const row = res.rows[0];
-    if (!row) throw createAppError(`Không tìm thấy lượt sàng lọc #${id}`, 3007, 404);
+    if (!row) throw createAppError(`Không tìm thấy lượt sàng lọc #${id}`, 9992, 404);
     if (!isStaffRole(user) && row.ma_benh_nhan) {
       await patientService.assertPatientAccess(user, row.ma_benh_nhan);
     }
@@ -212,7 +212,7 @@ class PatientFlowService {
   async _getRecordOrThrow(recordId, user = null) {
     const rid = parseInt(recordId, 10);
     if (Number.isNaN(rid) || rid <= 0) {
-      throw createAppError('Mã hồ sơ bệnh án không hợp lệ', 2003, 400);
+      throw createAppError('Mã hồ sơ bệnh án không hợp lệ', 1004, 400);
     }
     const res = await db.query(
       `SELECT hs.*, ng.ho_ten, ng.so_dien_thoai, ng.gioi_tinh, ng.ngay_sinh
@@ -224,7 +224,7 @@ class PatientFlowService {
     );
     const row = res.rows[0];
     if (!row) {
-      throw createAppError(`Không tìm thấy hồ sơ bệnh án #${rid}`, 3007, 404);
+      throw createAppError(`Không tìm thấy hồ sơ bệnh án #${rid}`, 9992, 404);
     }
     if (user && !isStaffRole(user)) {
       await patientService.assertPatientAccess(user, row.ma_benh_nhan);
@@ -238,7 +238,7 @@ class PatientFlowService {
       pid = await resolvePatientIdForUser(db, user);
     }
     if (!pid) {
-      throw createAppError('Không xác định được mã bệnh nhân cho hồ sơ mới', 2001, 400);
+      throw createAppError('Không xác định được mã bệnh nhân cho hồ sơ mới', 1002, 400);
     }
     await patientService.assertPatientAccess(user, pid);
 
@@ -396,7 +396,7 @@ class PatientFlowService {
       .findUnique({ where: { maHoSo: BigInt(recordRow.ma_ho_so) } })
       .catch(() => null);
     if (meta?.lockedAt && !isStaffRole(user)) {
-      throw createAppError('Hồ sơ bệnh án đã khóa sau khi gửi cho bác sĩ', 4003, 400);
+      throw createAppError('Hồ sơ bệnh án đã khóa sau khi gửi cho bác sĩ', 1010, 400);
     }
     return meta;
   }
@@ -487,10 +487,10 @@ class PatientFlowService {
     const rid = Number(row.ma_ho_so);
     const newStatus = String(data.status || data.trang_thai || '').trim();
     if (!['draft', 'pending', 'in_progress', 'completed', 'cancelled'].includes(newStatus)) {
-      throw createAppError('Trạng thái bệnh án không hợp lệ', 4009, 400);
+      throw createAppError('Trạng thái bệnh án không hợp lệ', 1004, 400);
     }
     if (!isStaffRole(user) && newStatus !== 'cancelled' && newStatus !== 'pending') {
-      throw createAppError('Không có quyền chuyển sang trạng thái này', 3101, 403);
+      throw createAppError('Không có quyền chuyển sang trạng thái này', 1009, 403);
     }
     await db.query('UPDATE public.hosobenhan SET trang_thai = $1 WHERE ma_ho_so = $2', [newStatus, rid]);
     return {
@@ -561,7 +561,7 @@ class PatientFlowService {
     }
 
     if (list.length === 0) {
-      throw createAppError('Danh sách câu trả lời rỗng', 4007, 400);
+      throw createAppError('Danh sách câu trả lời rỗng', 1002, 400);
     }
 
     let count = 0;
@@ -700,7 +700,7 @@ class PatientFlowService {
   async closeMedicalRecord(user, recordId) {
     const row = await this._getRecordOrThrow(recordId, user);
     if (row.trang_thai === 'completed') {
-      throw createAppError('Hồ sơ đã hoàn tất trước đó', 4003, 400);
+      throw createAppError('Hồ sơ đã hoàn tất trước đó', 1010, 400);
     }
     const rid = Number(row.ma_ho_so);
     await db.query(`UPDATE public.hosobenhan SET trang_thai = 'pending' WHERE ma_ho_so = $1`, [rid]);
@@ -801,7 +801,7 @@ class PatientFlowService {
     const row = await this._getRecordOrThrow(recordId, user);
     const rid = Number(row.ma_ho_so);
     if (row.trang_thai === 'completed' && String(user?.vai_tro || '').toLowerCase() !== 'admin') {
-      throw createAppError('Chỉ Admin mới có quyền xóa hồ sơ đã hoàn tất', 3102, 403);
+      throw createAppError('Chỉ Admin mới có quyền xóa hồ sơ đã hoàn tất', 1009, 403);
     }
 
     const client = await db.pool.connect();
@@ -895,7 +895,7 @@ class PatientFlowService {
         'SELECT ma_phien_kham, ma_ho_so, loai_benh_an FROM public.phienkham WHERE ma_phien_kham = $1 LIMIT 1',
         [sessionId]
       );
-      if (!pkRes.rows[0]) throw createAppError(`Không tìm thấy phiên khám #${sessionId}`, 3007, 404);
+      if (!pkRes.rows[0]) throw createAppError(`Không tìm thấy phiên khám #${sessionId}`, 9992, 404);
       loaiBenhAn = pkRes.rows[0].loai_benh_an;
     } else {
       const hs = await this._getRecordOrThrow(rid, user);
@@ -983,11 +983,11 @@ class PatientFlowService {
     const hs = await this._getRecordOrThrow(rid, user);
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length === 0) {
-      throw createAppError('Phải chọn ít nhất 1 xét nghiệm', 8101, 400);
+      throw createAppError('Phải chọn ít nhất 1 xét nghiệm', 1002, 400);
     }
     for (const it of items) {
       if (!it.test_name && !it.ten_xet_nghiem) {
-        throw createAppError('Tên xét nghiệm không được để rỗng', 8102, 400);
+        throw createAppError('Tên xét nghiệm không được để rỗng', 1002, 400);
       }
     }
 
@@ -1089,7 +1089,7 @@ class PatientFlowService {
     const hs = await this._getRecordOrThrow(rid, user);
     const items = Array.isArray(data.items) ? data.items : Array.isArray(data.medicines) ? data.medicines : [];
     if (items.length === 0) {
-      throw createAppError('Đơn thuốc phải có ít nhất 1 thuốc', 8001, 400);
+      throw createAppError('Đơn thuốc phải có ít nhất 1 thuốc', 1002, 400);
     }
 
     // Live DB public.donthuoc yêu cầu ma_phien_kham NOT NULL
@@ -1128,7 +1128,7 @@ class PatientFlowService {
 
       for (const it of items) {
         const medName = it.medicine_name || it.ten_thuoc_bo_sung || it.ten_thuoc || null;
-        if (!medName) throw createAppError('Tên thuốc không được để rỗng', 8002, 400);
+        if (!medName) throw createAppError('Tên thuốc không được để rỗng', 1002, 400);
         let maThuoc = it.ma_thuoc || null;
         if (maThuoc) {
           const tCheck = await client.query('SELECT ma_thuoc FROM public.thuoc WHERE ma_thuoc = $1 LIMIT 1', [maThuoc]);
@@ -1278,7 +1278,7 @@ class PatientFlowService {
       maBenhNhan = await resolvePatientIdForUser(db, user);
     }
     if (!maBenhNhan) {
-      throw createAppError('Không xác định được mã bệnh nhân để chấm điểm UAS7', 2001, 400);
+      throw createAppError('Không xác định được mã bệnh nhân để chấm điểm UAS7', 1002, 400);
     }
     maBenhNhan = await patientService.assertPatientAccess(user, maBenhNhan);
 
@@ -1288,12 +1288,12 @@ class PatientFlowService {
       Number.isNaN(whealScore) || whealScore < 0 || whealScore > 3 ||
       Number.isNaN(itchScore) || itchScore < 0 || itchScore > 3
     ) {
-      throw createAppError('Điểm sẩn phù (wheal_score/hss7) và điểm ngứa (itch_score/iss7) phải là số nguyên 0..3', 2003, 400);
+      throw createAppError('Điểm sẩn phù (wheal_score/hss7) và điểm ngứa (itch_score/iss7) phải là số nguyên 0..3', 1004, 400);
     }
 
     const scoreDate = String(data.score_date || data.ngay_cham_diem || new Date().toISOString().slice(0, 10)).slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(scoreDate)) {
-      throw createAppError('score_date phải có định dạng YYYY-MM-DD', 2003, 400);
+      throw createAppError('score_date phải có định dạng YYYY-MM-DD', 1004, 400);
     }
 
     let maHoSoMan = data.ma_ho_so_man || data.medical_record_id || null;
@@ -1313,7 +1313,7 @@ class PatientFlowService {
       [maBenhNhan, scoreDate]
     );
     if (dupCheck.rows.length > 0 && !overwrite) {
-      throw createAppError(`Ngày ${scoreDate} đã được chấm điểm UAS7 trước đó (truyền overwrite: true để cập nhật)`, 4009, 409);
+      throw createAppError(`Ngày ${scoreDate} đã được chấm điểm UAS7 trước đó (truyền overwrite: true để cập nhật)`, 1004, 409);
     }
 
     const client = await db.pool.connect();
@@ -1439,7 +1439,7 @@ class PatientFlowService {
       maBenhNhan = await resolvePatientIdForUser(db, user);
     }
     if (!maBenhNhan) {
-      throw createAppError('Thiếu mã bệnh nhân', 2001, 400);
+      throw createAppError('Thiếu mã bệnh nhân', 1002, 400);
     }
     maBenhNhan = await patientService.assertPatientAccess(user, maBenhNhan);
 
@@ -1488,7 +1488,7 @@ class PatientFlowService {
       maBenhNhan = await resolvePatientIdForUser(db, user);
     }
     if (!maBenhNhan) {
-      throw createAppError('Thiếu mã bệnh nhân', 2001, 400);
+      throw createAppError('Thiếu mã bệnh nhân', 1002, 400);
     }
     maBenhNhan = await patientService.assertPatientAccess(user, maBenhNhan);
 
@@ -1632,7 +1632,7 @@ class PatientFlowService {
     const hs = await this._getRecordOrThrow(rid, user);
     const epName = data.ten_dot_ton_thuong_da || data.episode_name || data.name || '';
     if (!String(epName).trim()) {
-      throw createAppError('Tên đợt tổn thương không được để rỗng', 7004, 400);
+      throw createAppError('Tên đợt tổn thương không được để rỗng', 1002, 400);
     }
 
     // Chỉ gán ma_ho_so_man nếu hồ sơ là MAN (FK tới benhanmaydayman), còn CAP để NULL & lưu ở Sub DB
@@ -1768,7 +1768,7 @@ class PatientFlowService {
     const eid = parseInt(episodeId, 10);
     const chk = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const existing = chk.rows[0];
-    if (!existing) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
+    if (!existing) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, existing.ma_benh_nhan);
 
     const sets = [];
@@ -1838,7 +1838,7 @@ class PatientFlowService {
     const eid = parseInt(episodeId, 10);
     const res = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const row = res.rows[0];
-    if (!row) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
+    if (!row) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, row.ma_benh_nhan);
     const meta = await prisma.lesionEpisodeMeta.findUnique({ where: { maDotTonThuong: BigInt(eid) } }).catch(() => null);
     return this._formatEpisodeFull(row, meta);
@@ -1847,7 +1847,7 @@ class PatientFlowService {
   async deleteLesionEpisode(user, episodeId) {
     const eid = parseInt(episodeId, 10);
     const res = await db.query('SELECT ma_benh_nhan FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_dot_ton_thuong_da = $1', [eid]);
@@ -1877,12 +1877,12 @@ class PatientFlowService {
     const eid = parseInt(data.episode_id || data.ma_dot_ton_thuong_da, 10);
     const epRes = await db.query('SELECT * FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [eid]);
     const ep = epRes.rows[0];
-    if (!ep) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 7001, 404);
+    if (!ep) throw createAppError(`Không tìm thấy đợt tổn thương #${eid}`, 9992, 404);
     await patientService.assertPatientAccess(user, ep.ma_benh_nhan);
 
     const bodyPart = String(data.vi_tri_co_the || data.body_part || '').trim();
     if (!bodyPart) {
-      throw createAppError('Vị trí body_part không được để rỗng', 7005, 400);
+      throw createAppError('Vị trí body_part không được để rỗng', 1002, 400);
     }
     const rawCtx = data.hoan_canh_xuat_hien;
     const ctxTagOther = !rawCtx && data.context_tags ? 'Khac' : rawCtx;
@@ -1987,7 +1987,7 @@ class PatientFlowService {
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
       [lid]
     );
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 7002, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     const bodyPart = data.vi_tri_co_the !== undefined ? data.vi_tri_co_the : data.body_part;
@@ -2044,7 +2044,7 @@ class PatientFlowService {
        WHERE v.ma_vi_tri_ton_thuong = $1 LIMIT 1`,
       [lid]
     );
-    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 7002, 404);
+    if (!res.rows[0]) throw createAppError(`Không tìm thấy vị trí tổn thương #${lid}`, 9992, 404);
     await patientService.assertPatientAccess(user, res.rows[0].ma_benh_nhan);
 
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_vi_tri_ton_thuong = $1', [lid]);
@@ -2059,10 +2059,10 @@ class PatientFlowService {
    */
   async uploadAttachmentToSupabase(user, file, body = {}) {
     if (!file || !file.buffer) {
-      throw createAppError('Chưa chọn file ảnh upload', 6001, 400);
+      throw createAppError('Chưa chọn file ảnh upload', 1002, 400);
     }
     if (!isConfigured || !supabase) {
-      throw createAppError('Supabase Storage chưa được cấu hình', 9903, 500);
+      throw createAppError('Supabase Storage chưa được cấu hình', 9999, 500);
     }
 
     const maHoSoRaw = body.medical_record_id || body.ma_ho_so;
@@ -2085,7 +2085,7 @@ class PatientFlowService {
       });
 
     if (uploadErr) {
-      throw createAppError(`Lỗi upload lên Supabase Storage: ${uploadErr.message}`, 6007, 502);
+      throw createAppError(`Lỗi upload lên Supabase Storage: ${uploadErr.message}`, 1007, 502);
     }
 
     const { data: pubData } = supabase.storage.from(bucketName).getPublicUrl(storagePath);
@@ -2164,10 +2164,10 @@ class PatientFlowService {
 
   async uploadMultipleAttachments(user, files = [], body = {}) {
     if (!Array.isArray(files) || files.length === 0) {
-      throw createAppError('Chưa chọn file ảnh upload', 6001, 400);
+      throw createAppError('Chưa chọn file ảnh upload', 1002, 400);
     }
     if (files.length > 10) {
-      throw createAppError('Upload tối đa 10 ảnh 1 lần', 6004, 400);
+      throw createAppError('Upload tối đa 10 ảnh 1 lần', 1008, 400);
     }
     const results = [];
     for (const f of files) {
@@ -2189,14 +2189,14 @@ class PatientFlowService {
       });
     } else if (uid) {
       const parsedUid = parseInt(uid, 10);
-      if (Number.isNaN(parsedUid)) throw createAppError('user_id không hợp lệ', 2003, 400);
+      if (Number.isNaN(parsedUid)) throw createAppError('user_id không hợp lệ', 1004, 400);
       const selfPid = await resolvePatientIdForUser(db, user);
       const isSelf =
         parsedUid === Number(user.ma_tai_khoan) ||
         (user.ma_nguoi && parsedUid === Number(user.ma_nguoi)) ||
         (selfPid && parsedUid === Number(selfPid));
       if (!isStaffRole(user) && !isSelf) {
-        throw createAppError('Không có quyền xem tệp đính kèm của người dùng khác', 3106, 403);
+        throw createAppError('Không có quyền xem tệp đính kèm của người dùng khác', 1009, 403);
       }
       const tkRes = await db.query(
         'SELECT ma_tai_khoan FROM public.taikhoan WHERE ma_tai_khoan = $1 OR ma_nguoi = $1',
@@ -2228,7 +2228,7 @@ class PatientFlowService {
 
   async viewAttachmentBinary(attachmentId) {
     const id = parseInt(attachmentId, 10);
-    if (Number.isNaN(id)) throw createAppError('ID tệp không hợp lệ', 2003, 400);
+    if (Number.isNaN(id)) throw createAppError('ID tệp không hợp lệ', 1004, 400);
 
     let storagePath = null;
     let bucket = bucketName;
@@ -2245,7 +2245,7 @@ class PatientFlowService {
       publicUrl = sub.publicUrl;
     } else {
       const tepRes = await db.query('SELECT * FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [id]);
-      if (!tepRes.rows[0]) throw createAppError('Không tìm thấy ảnh đính kèm', 6005, 404);
+      if (!tepRes.rows[0]) throw createAppError('Không tìm thấy ảnh đính kèm', 9992, 404);
       storagePath = tepRes.rows[0].duong_dan_luu_tru;
       mimeType = tepRes.rows[0].dinh_dang_tep || 'image/jpeg';
       publicUrl = tepRes.rows[0].duong_dan_url;
@@ -2265,7 +2265,7 @@ class PatientFlowService {
         return { buffer: Buffer.from(ab), mimeType: resp.headers.get('content-type') || mimeType };
       }
     }
-    throw createAppError('Không tìm thấy ảnh đính kèm', 6005, 404);
+    throw createAppError('Không tìm thấy ảnh đính kèm', 9992, 404);
   }
 
   async deleteAttachment(user, attachmentId) {
@@ -2277,10 +2277,10 @@ class PatientFlowService {
     });
     if (!sub) {
       const tepRes = await db.query('SELECT * FROM public.tepdinhkem WHERE ma_tep_dinh_kem = $1 LIMIT 1', [id]);
-      if (!tepRes.rows[0]) throw createAppError(`Không tìm thấy tệp đính kèm #${id}`, 6005, 404);
+      if (!tepRes.rows[0]) throw createAppError(`Không tìm thấy tệp đính kèm #${id}`, 9992, 404);
       const t = tepRes.rows[0];
       if (!isStaffRole(user) && Number(t.ma_tai_khoan) !== Number(user.ma_tai_khoan)) {
-        throw createAppError('Không có quyền xóa tệp đính kèm của người khác', 3106, 403);
+        throw createAppError('Không có quyền xóa tệp đính kèm của người khác', 1009, 403);
       }
       if (isConfigured && supabase && t.duong_dan_luu_tru) {
         await supabase.storage.from(bucketName).remove([t.duong_dan_luu_tru]).catch(() => null);
@@ -2291,7 +2291,7 @@ class PatientFlowService {
     }
 
     if (!isStaffRole(user) && Number(sub.maTaiKhoan) !== Number(user.ma_tai_khoan)) {
-      throw createAppError('Không có quyền xóa tệp đính kèm của người khác', 3106, 403);
+      throw createAppError('Không có quyền xóa tệp đính kèm của người khác', 1009, 403);
     }
 
     if (isConfigured && supabase && sub.storagePath) {
@@ -2361,7 +2361,7 @@ class PatientFlowService {
 
     if (episodeId) {
       const epRes = await db.query('SELECT ma_benh_nhan, ma_ho_so_man FROM public.dottonthuongda WHERE ma_dot_ton_thuong_da = $1 LIMIT 1', [parseInt(episodeId, 10)]);
-      if (!epRes.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${episodeId}`, 7001, 404);
+      if (!epRes.rows[0]) throw createAppError(`Không tìm thấy đợt tổn thương #${episodeId}`, 9992, 404);
       await patientService.assertPatientAccess(user, epRes.rows[0].ma_benh_nhan);
       if (!maHoSo && epRes.rows[0].ma_ho_so_man) maHoSo = Number(epRes.rows[0].ma_ho_so_man);
       if (!maHoSo) {
@@ -2373,7 +2373,7 @@ class PatientFlowService {
     let resolvedUrl = null;
     if (maTepDinhKem) {
       const synced = await this._resolveOrSyncTepDinhKemId(maTepDinhKem, maHoSo, user);
-      if (!synced) throw createAppError(`Không tìm thấy tệp đính kèm #${maTepDinhKem}`, 6005, 404);
+      if (!synced) throw createAppError(`Không tìm thấy tệp đính kèm #${maTepDinhKem}`, 9992, 404);
       maTepDinhKem = synced.id;
       resolvedUrl = synced.url;
     } else if (maHoSo && (data.url || data.public_url || data.image_url || data.storage_path)) {
@@ -2389,7 +2389,7 @@ class PatientFlowService {
     }
 
     if (!maTepDinhKem) {
-      throw createAppError('Cần cung cấp attachment_id từ bước upload ảnh', 2001, 400);
+      throw createAppError('Cần cung cấp attachment_id từ bước upload ảnh', 1002, 400);
     }
 
     const clamp010 = (v) => (v === undefined || v === null ? null : Math.min(10, Math.max(0, parseInt(v, 10) || 0)));
@@ -2442,7 +2442,7 @@ class PatientFlowService {
        WHERE a.ma_anh = $1 LIMIT 1`,
       [pid]
     );
-    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 7003, 404);
+    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 9992, 404);
     const ownerPid = chk.rows[0].hoso_benh_nhan || chk.rows[0].dot_benh_nhan;
     if (ownerPid) await patientService.assertPatientAccess(user, ownerPid);
 
@@ -2555,7 +2555,7 @@ class PatientFlowService {
        WHERE a.ma_anh = $1 LIMIT 1`,
       [pid]
     );
-    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 7003, 404);
+    if (!chk.rows[0]) throw createAppError(`Không tìm thấy ảnh chụp tổn thương #${pid}`, 9992, 404);
     await patientService.assertPatientAccess(user, chk.rows[0].ma_benh_nhan);
     await db.query('DELETE FROM public.anhchuptonthuong WHERE ma_anh = $1', [pid]);
     await prisma.lesionPhotoMeta.deleteMany({ where: { maAnh: BigInt(pid) } }).catch(() => null);
@@ -2570,13 +2570,13 @@ class PatientFlowService {
 
     if (!Number.isNaN(answerId) && (Number.isNaN(rid) || Number.isNaN(qid))) {
       const ans = await prisma.medicalRecordAnswer.findUnique({ where: { id: answerId } });
-      if (!ans) throw createAppError(`Không tìm thấy câu trả lời #${answerId}`, 3007, 404);
+      if (!ans) throw createAppError(`Không tìm thấy câu trả lời #${answerId}`, 9992, 404);
       rid = Number(ans.maHoSo);
       qid = ans.questionId;
     }
 
     if (Number.isNaN(rid) || Number.isNaN(qid)) {
-      throw createAppError('Thiếu medical_record_id + question_id hoặc answer_id', 2001, 400);
+      throw createAppError('Thiếu medical_record_id + question_id hoặc answer_id', 1002, 400);
     }
     await this._getRecordOrThrow(rid, user);
 
@@ -2600,7 +2600,7 @@ class PatientFlowService {
     }
 
     if (Number.isNaN(aid)) {
-      throw createAppError('Thiếu attachment_id hoặc image_url', 2001, 400);
+      throw createAppError('Thiếu attachment_id hoặc image_url', 1002, 400);
     }
 
     const optVal = data.option_value !== undefined ? (data.option_value !== null ? String(data.option_value) : null) : null;
@@ -2623,7 +2623,7 @@ class PatientFlowService {
     const answerId = data.answer_id;
     const list = Array.isArray(data.attachments) ? data.attachments : [];
     if (!answerId || list.length === 0) {
-      throw createAppError('Thiếu answer_id hoặc mảng attachments', 2001, 400);
+      throw createAppError('Thiếu answer_id hoặc mảng attachments', 1002, 400);
     }
     const saved = [];
     for (const item of list) {
@@ -2646,12 +2646,12 @@ class PatientFlowService {
 
     if (!Number.isNaN(answerId)) {
       const ans = await prisma.medicalRecordAnswer.findUnique({ where: { id: answerId } });
-      if (!ans) throw createAppError(`Không tìm thấy câu trả lời #${answerId}`, 3007, 404);
+      if (!ans) throw createAppError(`Không tìm thấy câu trả lời #${answerId}`, 9992, 404);
       rid = Number(ans.maHoSo);
       qid = ans.questionId;
     }
 
-    if (Number.isNaN(rid)) throw createAppError('Thiếu medical_record_id hoặc answer_id', 2001, 400);
+    if (Number.isNaN(rid)) throw createAppError('Thiếu medical_record_id hoặc answer_id', 1002, 400);
     await this._getRecordOrThrow(rid, user);
 
     const where = { maHoSo: BigInt(rid) };
@@ -2681,7 +2681,7 @@ class PatientFlowService {
   async deleteAnswerImage(user, answerImageId) {
     const id = parseInt(answerImageId, 10);
     const existing = await prisma.answerImage.findUnique({ where: { id } });
-    if (!existing) throw createAppError(`Không tìm thấy liên kết ảnh #${id}`, 3007, 404);
+    if (!existing) throw createAppError(`Không tìm thấy liên kết ảnh #${id}`, 9992, 404);
     await this._getRecordOrThrow(Number(existing.maHoSo), user);
     await prisma.answerImage.delete({ where: { id } });
     return {};

@@ -13,7 +13,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIMES.includes(file.mimetype)) {
       const err = new Error('Định dạng tệp không được hỗ trợ (chỉ chấp nhận JPEG, PNG, WEBP, GIF, PDF)');
-      err.code = 2003;
+      err.code = 1004;
       err.statusCode = 400;
       return cb(err);
     }
@@ -24,7 +24,8 @@ const upload = multer({
 const uploadSingleMiddleware = (req, res, next) => {
   upload.single('file')(req, res, (err) => {
     if (err) {
-      return errorResponse(res, err.message, err.statusCode || 400, err.code || 2003);
+      const code = err.code === 'LIMIT_FILE_SIZE' ? 1006 : (err.code || 1004);
+      return errorResponse(res, err.message, err.statusCode || 400, code, err);
     }
     return next();
   });
@@ -33,8 +34,11 @@ const uploadSingleMiddleware = (req, res, next) => {
 const uploadMultipleMiddleware = (req, res, next) => {
   upload.array('images', 10)(req, res, (err) => {
     if (err) {
-      const code = err.code === 'LIMIT_UNEXPECTED_FILE' ? 6004 : err.code || 2003;
-      return errorResponse(res, err.message, err.statusCode || 400, code);
+      const code =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 1006
+          : (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT' ? 1008 : err.code || 1004);
+      return errorResponse(res, err.message, err.statusCode || 400, code, err);
     }
     return next();
   });

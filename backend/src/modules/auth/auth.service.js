@@ -33,15 +33,15 @@ class AuthService {
     const genderInfo = normalizeDbGender(rawGenderInput !== undefined ? rawGenderInput : 'other');
 
     if (!fullName || !phone || !password) {
-      throw createAppError('Thiếu trường thông tin bắt buộc', 2001, 400);
+      throw createAppError('Thiếu trường thông tin bắt buộc', 1002, 400);
     }
 
     if (!isValidVNPhone(phone)) {
-      throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 2004, 400);
+      throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 1004, 400);
     }
 
     if (password.length < 6) {
-      throw createAppError('Mật khẩu phải có tối thiểu 6 ký tự', 2003, 400);
+      throw createAppError('Mật khẩu phải có tối thiểu 6 ký tự', 1004, 400);
     }
 
     let yearOfBirth = null;
@@ -49,7 +49,7 @@ class AuthService {
       const yob = parseInt(data.year_of_birth, 10);
       const currentYear = new Date().getFullYear();
       if (Number.isNaN(yob) || yob < 1900 || yob > currentYear) {
-        throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 2003, 400);
+        throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 1004, 400);
       }
       yearOfBirth = yob;
     }
@@ -69,7 +69,7 @@ class AuthService {
     `;
     const checkRes = await db.query(checkQuery, [phone]);
     if (checkRes.rows.length > 0) {
-      throw createAppError('Số điện thoại hoặc email đã tồn tại', 3006, 400);
+      throw createAppError('Số điện thoại hoặc email đã tồn tại', 9996, 400);
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -172,7 +172,7 @@ class AuthService {
   async login(usernameOrPhone, password) {
     if (!usernameOrPhone || !password) {
       const err = new Error('Thiếu trường thông tin bắt buộc');
-      err.code = 2001;
+      err.code = 1002;
       err.statusCode = 400;
       throw err;
     }
@@ -195,14 +195,14 @@ class AuthService {
 
     if (!user) {
       const err = new Error('Tài khoản không tồn tại');
-      err.code = 3007;
+      err.code = 9992;
       err.statusCode = 404;
       throw err;
     }
 
     if (!user.trang_thai_hoat_dong) {
       const err = new Error('Tài khoản hiện đang bị vô hiệu hóa hoặc khóa');
-      err.code = 3007;
+      err.code = 9992;
       err.statusCode = 403;
       throw err;
     }
@@ -217,7 +217,7 @@ class AuthService {
 
     if (!isMatch) {
       const err = new Error('Mật khẩu không chính xác');
-      err.code = 3008;
+      err.code = 9995;
       err.statusCode = 400;
       throw err;
     }
@@ -299,14 +299,14 @@ class AuthService {
     const rawPhone = (phone || '').trim();
     if (!rawPhone) {
       const err = new Error('Thiếu trường thông tin bắt buộc');
-      err.code = 2001;
+      err.code = 1002;
       err.statusCode = 400;
       throw err;
     }
 
     if (!isValidVNPhone(rawPhone)) {
       const err = new Error('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)');
-      err.code = 2004;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
@@ -320,7 +320,7 @@ class AuthService {
     `;
     const checkRes = await db.query(checkQuery, [rawPhone]);
     if (checkRes.rows.length === 0) {
-      throw createAppError('Tài khoản không tồn tại', 3007, 404);
+      throw createAppError('Tài khoản không tồn tại', 9992, 404);
     }
 
     const otpCode = String(Math.floor(100000 + Math.random() * 900000));
@@ -347,21 +347,21 @@ class AuthService {
   async changePassword(maTaiKhoan, oldPassword, newPassword, confirmPassword) {
     if (!oldPassword || !newPassword) {
       const err = new Error('Thiếu trường thông tin bắt buộc');
-      err.code = 2001;
+      err.code = 1002;
       err.statusCode = 400;
       throw err;
     }
 
     if (newPassword.length < 6) {
       const err = new Error('Mật khẩu mới phải có tối thiểu 6 ký tự');
-      err.code = 2003;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
 
     if (confirmPassword && confirmPassword !== newPassword) {
       const err = new Error('Mật khẩu xác nhận không khớp');
-      err.code = 2003;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
@@ -374,7 +374,7 @@ class AuthService {
     const user = userRes.rows[0];
     if (!user) {
       const err = new Error('Tài khoản không tồn tại');
-      err.code = 3007;
+      err.code = 9992;
       err.statusCode = 404;
       throw err;
     }
@@ -388,7 +388,7 @@ class AuthService {
 
     if (!isMatch) {
       const err = new Error('Mật khẩu cũ không chính xác khi đổi mật khẩu');
-      err.code = 3009;
+      err.code = 9995;
       err.statusCode = 400;
       throw err;
     }
@@ -419,21 +419,21 @@ class AuthService {
 
     if (!fullName || !phone || !password || !roleId || !branchId) {
       const err = new Error('Thiếu trường thông tin bắt buộc');
-      err.code = 2001;
+      err.code = 1002;
       err.statusCode = 400;
       throw err;
     }
 
     if (!isValidVNPhone(phone)) {
       const err = new Error('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)');
-      err.code = 2004;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
 
     if (password.length < 6) {
       const err = new Error('Mật khẩu phải có tối thiểu 6 ký tự');
-      err.code = 2003;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
@@ -449,7 +449,7 @@ class AuthService {
     const checkRes = await db.query(checkQuery, [phone]);
     if (checkRes.rows.length > 0) {
       const err = new Error('Số điện thoại hoặc email đã tồn tại');
-      err.code = 3006;
+      err.code = 9996;
       err.statusCode = 400;
       throw err;
     }
@@ -460,7 +460,7 @@ class AuthService {
     ]);
     if (branchRes.rows.length === 0) {
       const err = new Error('Chi nhánh không tồn tại');
-      err.code = 2003;
+      err.code = 1004;
       err.statusCode = 400;
       throw err;
     }
@@ -535,7 +535,7 @@ class AuthService {
     const result = await db.query(queryText, [ma_tai_khoan]);
     const row = result.rows[0];
     if (!row) {
-      throw createAppError('Tài khoản không tồn tại', 3007, 404);
+      throw createAppError('Tài khoản không tồn tại', 9992, 404);
     }
 
     let extra = null;
@@ -600,7 +600,7 @@ class AuthService {
     );
     const acc = accRes.rows[0];
     if (!acc) {
-      throw createAppError('Tài khoản không tồn tại', 3007, 404);
+      throw createAppError('Tài khoản không tồn tại', 9992, 404);
     }
 
     const fullName = data.full_name !== undefined ? data.full_name : data.ho_ten;
@@ -616,7 +616,7 @@ class AuthService {
         const yob = parseInt(data.year_of_birth, 10);
         const currentYear = new Date().getFullYear();
         if (Number.isNaN(yob) || yob < 1900 || yob > currentYear) {
-          throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 2003, 400);
+          throw createAppError(`Năm sinh không hợp lệ (1900-${currentYear})`, 1004, 400);
         }
         yearOfBirth = yob;
       }
@@ -633,7 +633,7 @@ class AuthService {
     if (phone !== undefined && phone !== null && String(phone).trim() !== '') {
       const cleanPhone = String(phone).trim();
       if (!isValidVNPhone(cleanPhone)) {
-        throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 2004, 400);
+        throw createAppError('Số điện thoại không đúng chuẩn VN (03/05/07/08/09)', 1004, 400);
       }
       const dupRes = await db.query(
         `SELECT tk.ma_tai_khoan FROM public.taikhoan tk
@@ -643,7 +643,7 @@ class AuthService {
         [cleanPhone, ma_tai_khoan]
       );
       if (dupRes.rows.length > 0) {
-        throw createAppError('Số điện thoại đã được sử dụng bởi tài khoản khác', 3006, 400);
+        throw createAppError('Số điện thoại đã được sử dụng bởi tài khoản khác', 9996, 400);
       }
     }
 
@@ -651,7 +651,7 @@ class AuthService {
       data.next_of_kin_phone !== undefined ? data.next_of_kin_phone : data.nguoi_nha_so_dien_thoai;
     if (nextOfKinPhone !== undefined && nextOfKinPhone !== null && String(nextOfKinPhone).trim() !== '') {
       if (!isValid10DigitPhone(String(nextOfKinPhone))) {
-        throw createAppError('Số điện thoại người thân phải đúng 10 chữ số', 2004, 400);
+        throw createAppError('Số điện thoại người thân phải đúng 10 chữ số', 1004, 400);
       }
     }
 

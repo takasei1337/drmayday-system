@@ -56,7 +56,7 @@ class ClinicalService {
     const ck = ckRes.rows[0];
     if (!ck) {
       const err = new Error(`Không tìm thấy chu kỳ UAS7 #${maChuKy}`);
-      err.code = 3007;
+      err.code = 9992;
       err.statusCode = 404;
       throw err;
     }
