@@ -1,0 +1,31 @@
+meta {
+  name: 02. Danh sách ảnh theo vị trí (Sheet GET /lesion-photos/location/:location_id)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/lesion-photos/location/{{locationId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("array");
+    if (body.data.length > 0) {
+      expect(Object.keys(body.data[0]).sort(), "data[0]").to.eql(["annotated_url","attachment","attachment_id","burn_score","created_at","episode_id","hives_count","itch_score","local_auas","location_id","milestone","pain_score","photo_id","taken_at","updated_at"]);
+      expect(body.data[0].attachment).to.be.an("object");
+      expect(Object.keys(body.data[0].attachment).sort(), "attachment").to.eql(["attachment_id","file_url"]);
+    }
+  });
+}

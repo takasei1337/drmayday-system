@@ -33,13 +33,15 @@ class ClinicalController {
 
   async logUAS7(req, res, next) {
     try {
-      const { ma_chu_ky, ngay_ghi_nhan } = req.body;
-      if (!ma_chu_ky || !ngay_ghi_nhan) {
-        return errorResponse(res, 'Mã chu kỳ và ngày ghi nhận là bắt buộc', 400);
+      const maChuKy = req.body.ma_chu_ky;
+      const ngay = req.body.ngay_cham_diem || req.body.ngay_ghi_nhan || req.body.score_date;
+      if (!maChuKy || !ngay) {
+        return errorResponse(res, 'Mã chu kỳ và ngày ghi nhận là bắt buộc', 400, 2001);
       }
       const data = await clinicalService.logUAS7Daily(req.body);
       return successResponse(res, data, 'Ghi nhận điểm UAS7 hằng ngày thành công', 201);
     } catch (err) {
+      if (err.code) return errorResponse(res, err.message, err.statusCode || 400, err.code);
       next(err);
     }
   }

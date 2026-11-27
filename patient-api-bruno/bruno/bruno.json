@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "DrMayDay - Patient Backend Collection (GoogleSheet Strict)",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

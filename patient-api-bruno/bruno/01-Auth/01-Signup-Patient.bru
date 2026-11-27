@@ -1,0 +1,51 @@
+meta {
+  name: 01. Đăng ký Bệnh nhân mới (Sheet 1.1 POST /auth/signup)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/signup
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "full_name": "Nguyễn Văn Test Bệnh Nhân",
+    "phone": "{{testPatientPhone}}",
+    "password": "{{testPatientPassword}}",
+    "gender": "male"
+  }
+}
+
+script:pre-request {
+  const rand = Math.floor(10000000 + Math.random() * 90000000);
+  const phone = "09" + rand;
+  bru.setEnvVar("testPatientPhone", phone);
+  bru.setEnvVar("testPatientUser", phone);
+  if (!bru.getEnvVar("testPatientPassword")) { bru.setEnvVar("testPatientPassword", "Patient@123"); }
+}
+
+script:post-response {
+  const b = res.getBody();
+  if ((res.getStatus() === 200 || res.getStatus() === 201) && b && b.data && b.data.user_id) {
+    bru.setEnvVar("patientId", String(b.data.user_id));
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["created_at","full_name","gender","is_active","phone","role_id","user_id"]);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: 04. Chi tiết đợt tổn thương (Sheet GET /lesion-episodes/:id)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/lesion-episodes/{{episodeId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["context_other","context_tags","created_at","description","episode_id","medical_record_id","medication_name","medication_taken_ago","medication_unit","name","occurred_at","patient_id","updated_at"]);
+  });
+}

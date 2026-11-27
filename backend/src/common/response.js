@@ -117,6 +117,10 @@ const errorResponse = (res, message = 'Exception error.', statusCode = 500, code
   return sheetError(res, message, statusCode, code || (statusCode === 400 ? 1002 : statusCode === 404 ? 9992 : 9999));
 };
 
+const sheetRawSuccess = (res, payload = {}, statusCode = 200) => {
+  return res.status(statusCode).json(payload);
+};
+
 module.exports = {
   MERGED_RESPONSE_CODES,
   DETAIL_TO_MERGED_CODE,
@@ -126,4 +130,5 @@ module.exports = {
   sheetError,
   successResponse,
   errorResponse,
+  sheetRawSuccess,
 };

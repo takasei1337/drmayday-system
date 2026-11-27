@@ -1,0 +1,41 @@
+meta {
+  name: 01. Upload 1 ảnh (Sheet POST /image-attachments/upload)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/image-attachments/upload
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+body:multipart-form {
+  file: @file()
+  medical_record_id: {{recordId}}
+  question_id: Q_ITCH_DURATION
+  media_type: image
+  category: lesion
+  description: Ảnh tổn thương cánh tay
+}
+
+script:post-response {
+  const b = res.getBody();
+  if (b && b.data && b.data.id) bru.setEnvVar("attachmentId", String(b.data.id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["category","created_at","description","file_name","file_path","file_type","file_url","id","media_type","medical_record_id","question_id","user_id"]);
+  });
+}

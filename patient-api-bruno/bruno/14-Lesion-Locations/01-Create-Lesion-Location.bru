@@ -1,0 +1,48 @@
+meta {
+  name: 01. Tạo vị trí tổn thương (Sheet POST /lesion-locations)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/lesion-locations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "episode_id": "{{episodeId}}",
+    "body_part": "Cánh tay phải",
+    "occurred_at": "2026-11-18 20:15:00",
+    "context_tags": "[\"sau ăn\"]",
+    "medication_name": "Cetirizine",
+    "medication_taken_ago": "1",
+    "medication_unit": "hour"
+  }
+}
+
+script:post-response {
+  const b = res.getBody();
+  if (b && b.data && b.data.lesion_location_id) bru.setEnvVar("locationId", String(b.data.lesion_location_id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["body_part","context_other","context_tags","created_at","episode_id","lesion_location_id","medication_name","medication_taken_ago","medication_unit","occurred_at","updated_at"]);
+  });
+}

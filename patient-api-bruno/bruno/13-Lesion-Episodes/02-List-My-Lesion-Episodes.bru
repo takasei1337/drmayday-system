@@ -1,0 +1,29 @@
+meta {
+  name: 02. Đợt tổn thương của tôi (Sheet GET /lesion-episodes/my)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/lesion-episodes/my
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("array");
+    if (body.data.length > 0) {
+      expect(Object.keys(body.data[0]).sort(), "data[0]").to.eql(["created_at","description","episode_id","medical_record_id","name","occurred_at","patient_id","updated_at"]);
+    }
+  });
+}

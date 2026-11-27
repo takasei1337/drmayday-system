@@ -1,0 +1,26 @@
+meta {
+  name: 04. Gỡ ảnh khỏi câu trả lời (Sheet DELETE /answer-images/:id)
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/answer-images/{{answerImageId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.eql({});
+  });
+}

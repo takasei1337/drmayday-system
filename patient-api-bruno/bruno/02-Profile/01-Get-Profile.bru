@@ -1,0 +1,27 @@
+meta {
+  name: 01. Xem hồ sơ cá nhân (Sheet GET /profile)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/profile
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["career","city_address","commune_address","ethnic","first_visit","full_name","gender","hamlet_address","health_insurance_number","health_insurance_validate","next_of_kin_name","next_of_kin_phone","phone","role_id","user_id","work_place","year_of_birth"]);
+  });
+}

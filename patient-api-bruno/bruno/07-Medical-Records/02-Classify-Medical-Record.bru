@@ -1,0 +1,42 @@
+meta {
+  name: 02. Phân loại bệnh án (Sheet POST /medical_records/classify)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/medical_records/classify
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "Q_DURATION_WEEKS",
+        "option_value": "GE_6_WEEKS"
+      }
+    ]
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["template_id","template_name"]);
+  });
+}

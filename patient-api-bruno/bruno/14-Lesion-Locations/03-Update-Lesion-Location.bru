@@ -1,0 +1,37 @@
+meta {
+  name: 03. Cập nhật vị trí tổn thương (Sheet PATCH /lesion-locations/:id)
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/lesion-locations/{{locationId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "body_part": "Cẳng tay phải"
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["body_part","context_other","context_tags","created_at","episode_id","lesion_location_id","medication_name","medication_taken_ago","medication_unit","occurred_at","updated_at"]);
+  });
+}

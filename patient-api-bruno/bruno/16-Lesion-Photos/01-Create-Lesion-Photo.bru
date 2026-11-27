@@ -1,0 +1,50 @@
+meta {
+  name: 01. Tạo ảnh tổn thương 3 mốc (Sheet POST /lesion-photos)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/lesion-photos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "episode_id": "{{episodeId}}",
+    "location_id": "{{locationId}}",
+    "attachment_id": "{{attachmentId}}",
+    "milestone": "peak",
+    "itch_score": "6",
+    "pain_score": "2",
+    "burn_score": "4",
+    "hives_count": "12",
+    "local_auas": "8"
+  }
+}
+
+script:post-response {
+  const b = res.getBody();
+  if (b && b.data && b.data.photo_id) bru.setEnvVar("photoId", String(b.data.photo_id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["annotated_url","attachment_id","burn_score","created_at","episode_id","hives_count","itch_score","local_auas","location_id","milestone","pain_score","photo_id","taken_at","updated_at"]);
+  });
+}

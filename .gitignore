@@ -28,3 +28,4 @@ AGENTS.md
 
 # Bruno Local Environment (Chứa tài khoản mật khẩu nội bộ)
 bruno/environments/Local.bru
+patient-api-bruno/bruno/environments/Local.bru

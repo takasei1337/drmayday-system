@@ -1,0 +1,24 @@
+vars {
+  baseUrl: http://localhost:5000/api/v1
+  rootUrl: http://localhost:5000
+  adminUser: 0900000001
+  adminPassword: 
+  doctorUser: 0901000002
+  doctorPassword: 
+  testPatientUser: 0912345678
+  testPatientPassword: 
+  testPatientPhone: 0912999888
+  adminToken: 
+  doctorToken: 
+  patientToken: 
+  patientId: 2
+  recordId: 16
+  sessionId: 1
+  answerId: 1
+  episodeId: 1
+  locationId: 1
+  attachmentId: 1
+  photoId: 1
+  answerImageId: 1
+  templateId: TMPL_URTICARIA_CHRONIC_INIT
+}

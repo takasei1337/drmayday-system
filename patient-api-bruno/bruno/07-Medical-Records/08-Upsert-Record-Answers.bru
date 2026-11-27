@@ -1,0 +1,45 @@
+meta {
+  name: 08. Cập nhật câu trả lời (Sheet PUT /medical_records/:id/answers)
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/medical_records/{{recordId}}/answers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "answers": [
+      {
+        "question_id": "Q_ITCH_DURATION",
+        "answer_text": "Ngứa nhiều về đêm trên 6 tuần",
+        "answer_value": {
+          "hours": 24
+        }
+      }
+    ]
+  }
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["count"]);
+  });
+}

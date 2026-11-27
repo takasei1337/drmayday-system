@@ -1,0 +1,44 @@
+meta {
+  name: 01. Gắn 1 ảnh vào câu trả lời (Sheet POST /answer-images)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/answer-images
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{patientToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "answer_id": "{{answerId}}",
+    "attachment_id": "{{attachmentId}}",
+    "option_value": "YES"
+  }
+}
+
+script:post-response {
+  const b = res.getBody();
+  if (b && b.data && b.data.id) bru.setEnvVar("answerImageId", String(b.data.id));
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(201);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["answer_id","attachment_id","created_at","id","option_value"]);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: 11. Bác sĩ tiếp nhận hồ sơ (Sheet POST /medical_records/:id/accept)
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/medical_records/{{recordId}}/accept
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{doctorToken}}
+}
+
+tests {
+  test("Chuẩn GoogleSheet: top-level keys & code 1000", function () {
+    expect(res.getStatus()).to.equal(200);
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(Object.keys(body).sort(), "top-level").to.eql(["code","data","message"]);
+    expect(body.code).to.equal(1000);
+    expect(body.data).to.be.an("object");
+    expect(Object.keys(body.data).sort(), "data").to.eql(["assigned_doctor_id","medical_record_id","status"]);
+  });
+}

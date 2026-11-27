@@ -9,7 +9,7 @@ const { supabase, bucketName } = require('../../config/supabase');
 class LesionService {
   // Lấy danh mục vị trí tổn thương từ CSDL chính
   async getViTriTonThuongList() {
-    const query = 'SELECT * FROM public.vitritonthuong ORDER BY ma_vi_tri ASC';
+    const query = 'SELECT * FROM public.vitritonthuong ORDER BY ma_vi_tri_ton_thuong ASC';
     const result = await db.query(query);
     return result.rows;
   }
@@ -18,8 +18,8 @@ class LesionService {
   async getDotTonThuongByHoSo(ma_ho_so) {
     const query = `
       SELECT * FROM public.dottonthuongda
-      WHERE ma_ho_so = $1
-      ORDER BY ngay_bat_dau_dot DESC
+      WHERE ma_ho_so_man = $1
+      ORDER BY thoi_diem_xuat_hien DESC NULLS LAST, ma_dot_ton_thuong_da DESC
     `;
     const result = await db.query(query, [ma_ho_so]);
     return result.rows;
