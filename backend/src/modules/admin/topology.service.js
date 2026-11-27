@@ -32,11 +32,14 @@ function parsePositiveInt(value, fieldName = 'id') {
   throw createSheetError(`${fieldName} không đúng kiểu dữ liệu`, 1003, 400);
 }
 
+const XSS_PATTERN =
+  /<\s*\/?\s*[a-zA-Z][^>]*>|<\s*(script|iframe|object|embed|svg|img|body|style|link|meta|form|input|button|a)\b|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on(?:error|load|click|mouseover|focus|blur|submit|change|input|keydown|keyup|mouseenter|mouseleave)\s*=/i;
+
 /**
  * Validate a required non-empty string parameter.
  */
 function requireNonEmptyString(value, fieldName, maxLength = null) {
-  if (value === undefined || value === null) {
+  if (value === undefined || value === null || value === '') {
     throw createSheetError(`Thiếu tham số bắt buộc: ${fieldName}`, 1002, 400);
   }
   if (typeof value !== 'string') {
@@ -44,7 +47,10 @@ function requireNonEmptyString(value, fieldName, maxLength = null) {
   }
   const trimmed = value.trim();
   if (!trimmed) {
-    throw createSheetError(`Tham số ${fieldName} không được để trống`, 1002, 400);
+    throw createSheetError(`Tham số ${fieldName} không được chỉ chứa khoảng trắng`, 1004, 400);
+  }
+  if (XSS_PATTERN.test(trimmed)) {
+    throw createSheetError(`${fieldName} chứa ký tự hoặc thẻ HTML không hợp lệ`, 1004, 400);
   }
   if (maxLength && trimmed.length > maxLength) {
     throw createSheetError(`${fieldName} vượt quá ${maxLength} ký tự`, 1004, 400);
@@ -64,6 +70,9 @@ function parseOptionalNonEmptyString(value, fieldName, maxLength = null) {
   if (!trimmed) {
     throw createSheetError(`${fieldName} không được để trống`, 1004, 400);
   }
+  if (XSS_PATTERN.test(trimmed)) {
+    throw createSheetError(`${fieldName} chứa ký tự hoặc thẻ HTML không hợp lệ`, 1004, 400);
+  }
   if (maxLength && trimmed.length > maxLength) {
     throw createSheetError(`${fieldName} vượt quá ${maxLength} ký tự`, 1004, 400);
   }
@@ -79,7 +88,14 @@ function parseOptionalDescription(value) {
   if (typeof value !== 'string') {
     throw createSheetError('description phải là chuỗi ký tự', 1003, 400);
   }
-  return value.trim();
+  const trimmed = value.trim();
+  if (trimmed.length > 500) {
+    throw createSheetError('description không được vượt quá 500 ký tự', 1004, 400);
+  }
+  if (XSS_PATTERN.test(trimmed)) {
+    throw createSheetError('description chứa ký tự hoặc thẻ HTML không hợp lệ', 1004, 400);
+  }
+  return trimmed;
 }
 
 function formatBranchDetail(row, meta) {
@@ -300,7 +316,7 @@ class TopologyService {
   // =========================================================================
 
   async createDepartment(body = {}) {
-    const name = requireNonEmptyString(body.name, 'name');
+    const name = requireNonEmptyString(body.name, 'name', 150);
     if (body.branch_id === undefined || body.branch_id === null || body.branch_id === '') {
       throw createSheetError('Thiếu tham số bắt buộc: branch_id', 1002, 400);
     }
@@ -343,10 +359,25 @@ class TopologyService {
       where.maChiNhanh = BigInt(branchId);
     }
 
-    const depts = await prisma.department.findMany({
+    const findOpts = {
       where,
-      orderBy: { id: 'asc' },
-    });
+      // Trả mới nhất lên đầu để khoa vừa tạo luôn xuất hiện ngay cả khi client truyền ?limit=
+      orderBy: [{ id: 'desc' }],
+    };
+
+    const hasPage = query.page !== undefined && query.page !== '';
+    const hasLimit = query.limit !== undefined && query.limit !== '';
+    if (hasPage || hasLimit) {
+      const page = hasPage ? parsePositiveInt(query.page, 'page') : 1;
+      const limit = hasLimit ? parsePositiveInt(query.limit, 'limit') : 50;
+      if (limit > 200) {
+        throw createSheetError('limit không được vượt quá 200', 1004, 400);
+      }
+      findOpts.skip = (page - 1) * limit;
+      findOpts.take = limit;
+    }
+
+    const depts = await prisma.department.findMany(findOpts);
 
     return depts.map((d) => ({
       id: String(d.id),

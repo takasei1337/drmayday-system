@@ -6,6 +6,32 @@ const { createSheetError } = require('../../common/response');
 const VN_PHONE_REGEX = /^(03|05|07|08|09)[0-9]{8}$/;
 const PERMISSION_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_.:-]*$/;
 const MAX_ROLE_PERMISSIONS_BATCH = 50;
+const XSS_PATTERN =
+  /<\s*\/?\s*[a-zA-Z][^>]*>|<\s*(script|iframe|object|embed|svg|img|body|style|link|meta|form|input|button|a)\b|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on(?:error|load|click|mouseover|focus|blur|submit|change|input|keydown|keyup|mouseenter|mouseleave)\s*=/i;
+
+function hasControlChars(str) {
+  return /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(str);
+}
+
+function validateOptionalDescription(value, maxLength = 500) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
+  }
+  const trimmed = value.trim();
+  if (value.length > 0 && trimmed === '') {
+    throw createSheetError('description không được chỉ chứa khoảng trắng', 1004, 400);
+  }
+  if (trimmed.length > maxLength || XSS_PATTERN.test(trimmed) || hasControlChars(trimmed)) {
+    throw createSheetError(
+      `description không hợp lệ hoặc vượt quá ${maxLength} ký tự`,
+      1004,
+      400
+    );
+  }
+  return trimmed;
+}
 
 const GENDER_INPUT_MAP = {
   male: { dbGender: 'Nam', rawGender: 'male' },
@@ -30,7 +56,19 @@ function parsePositiveInt(value, fieldName, { required = false } = {}) {
     return null;
   }
 
-  if (typeof value === 'boolean') {
+  if (typeof value === 'boolean' || typeof value === 'object') {
+    throw createSheetError(`Kiểu dữ liệu không hợp lệ cho ${fieldName}`, 1003, 400);
+  }
+
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw createSheetError(`Kiểu dữ liệu không hợp lệ cho ${fieldName}`, 1003, 400);
+  }
+
+  if (typeof value === 'string' && value.trim() === '') {
+    throw createSheetError(`Giá trị không hợp lệ cho ${fieldName}`, 1004, 400);
+  }
+
+  if (typeof value === 'number' && !Number.isInteger(value)) {
     throw createSheetError(`Kiểu dữ liệu không hợp lệ cho ${fieldName}`, 1003, 400);
   }
 
@@ -631,7 +669,10 @@ class AdminRbacService {
 
   // 7. POST /roles
   async createRole(payload = {}) {
-    if (payload.name === undefined || payload.name === null || String(payload.name).trim() === '') {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createSheetError('Kiểu dữ liệu payload không hợp lệ', 1003, 400);
+    }
+    if (payload.name === undefined || payload.name === null || payload.name === '') {
       throw createSheetError('Thiếu tên vai trò (name)', 1002, 400);
     }
     if (typeof payload.name !== 'string') {
@@ -639,14 +680,12 @@ class AdminRbacService {
     }
 
     const name = payload.name.trim();
-    if (name.length > 50) {
-      throw createSheetError('Tên vai trò tối đa 50 ký tự', 1004, 400);
+    if (!name || name.length > 50 || XSS_PATTERN.test(name) || hasControlChars(name)) {
+      throw createSheetError('Tên vai trò không hợp lệ hoặc vượt quá 50 ký tự', 1004, 400);
     }
 
     const description =
-      payload.description !== undefined && payload.description !== null
-        ? String(payload.description)
-        : null;
+      payload.description !== undefined ? validateOptionalDescription(payload.description, 500) : null;
 
     const parentRoleId =
       payload.parent_role_id !== undefined && payload.parent_role_id !== null && payload.parent_role_id !== ''
@@ -721,19 +760,12 @@ class AdminRbacService {
     if (typeof payload.name !== 'string') {
       throw createSheetError('Kiểu dữ liệu name không hợp lệ', 1003, 400);
     }
-    if (
-      payload.description !== undefined &&
-      payload.description !== null &&
-      typeof payload.description !== 'string'
-    ) {
-      throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
-    }
 
     const name = payload.name.trim();
     if (!name) {
       throw createSheetError('Tên quyền hạn không được chỉ chứa khoảng trắng', 1004, 400);
     }
-    if (name.length > 100 || !PERMISSION_NAME_REGEX.test(name)) {
+    if (name.length > 100 || !PERMISSION_NAME_REGEX.test(name) || XSS_PATTERN.test(name)) {
       throw createSheetError(
         'Tên quyền hạn không đúng định dạng (bắt đầu bằng chữ cái, chỉ gồm chữ, số, _, ., :, - và tối đa 100 ký tự)',
         1004,
@@ -742,9 +774,7 @@ class AdminRbacService {
     }
 
     const description =
-      payload.description !== undefined && payload.description !== null
-        ? payload.description
-        : null;
+      payload.description !== undefined ? validateOptionalDescription(payload.description, 500) : null;
 
     const dupCheck = await db.query(
       'SELECT ma_quyen_han FROM public.quyenhan WHERE LOWER(ten_quyen_han) = LOWER($1) LIMIT 1',
@@ -811,7 +841,7 @@ class AdminRbacService {
         throw createSheetError('Kiểu dữ liệu name không hợp lệ', 1003, 400);
       }
       nextName = payload.name.trim();
-      if (!nextName || nextName.length > 100 || !PERMISSION_NAME_REGEX.test(nextName)) {
+      if (!nextName || nextName.length > 100 || !PERMISSION_NAME_REGEX.test(nextName) || XSS_PATTERN.test(nextName)) {
         throw createSheetError(
           'Tên quyền hạn không đúng định dạng hoặc vượt quá 100 ký tự',
           1004,
@@ -820,11 +850,9 @@ class AdminRbacService {
       }
     }
 
-    if (hasDescription && payload.description !== null && typeof payload.description !== 'string') {
-      throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
-    }
-    const nextDescription =
-      hasDescription && payload.description !== null ? payload.description : null;
+    const nextDescription = hasDescription
+      ? validateOptionalDescription(payload.description, 500)
+      : null;
 
     const existRes = await db.query(
       'SELECT ma_quyen_han FROM public.quyenhan WHERE ma_quyen_han = $1 LIMIT 1',
@@ -849,7 +877,7 @@ class AdminRbacService {
       UPDATE public.quyenhan
       SET ten_quyen_han = COALESCE($1, ten_quyen_han),
           mo_ta = CASE WHEN $2::boolean THEN $3 ELSE mo_ta END,
-          thoi_diem_cap_nhat = GREATEST(NOW(), thoi_diem_tao + INTERVAL '1 millisecond', thoi_diem_cap_nhat + INTERVAL '1 millisecond')
+          thoi_diem_cap_nhat = GREATEST(NOW(), thoi_diem_tao + INTERVAL '1 millisecond', COALESCE(thoi_diem_cap_nhat, thoi_diem_tao) + INTERVAL '1 millisecond')
       WHERE ma_quyen_han = $4
       RETURNING ma_quyen_han, ten_quyen_han, mo_ta, thoi_diem_tao, thoi_diem_cap_nhat
       `,

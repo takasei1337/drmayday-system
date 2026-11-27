@@ -21,7 +21,7 @@ async function req(baseUrl, method, path, token = null, body = null) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(20000),
   });
   const json = await res.json().catch(() => ({}));
   return { status: res.status, json };

@@ -2,7 +2,97 @@ const prisma = require('../../config/prisma');
 const { createSheetError } = require('../../common/response');
 
 const ALLOWED_FILLED_BY = new Set(['patient', 'doctor', 'patdoc', 'both']);
+const ALLOWED_QUESTION_TYPES = new Set([
+  'text',
+  'textarea',
+  'number',
+  'radio',
+  'checkbox',
+  'select',
+  'multi_select',
+  'multiselect',
+  'file_upload',
+  'file',
+  'image',
+  'date',
+  'datetime',
+  'time',
+  'boolean',
+]);
+const CODE_REGEX = /^[A-Za-z][A-Za-z0-9_.:-]*$/;
+const XSS_PATTERN =
+  /<\s*\/?\s*[a-zA-Z][^>]*>|<\s*(script|iframe|object|embed|svg|img|body|style|link|meta|form|input|button|a)\b|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on(?:error|load|click|mouseover|focus|blur|submit|change|input|keydown|keyup|mouseenter|mouseleave)\s*=/i;
 const MAX_INT32 = 2147483647;
+
+function hasControlChars(str) {
+  return /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(str);
+}
+
+function assertPlainObject(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw createSheetError('Kiểu dữ liệu payload không hợp lệ', 1003, 400);
+  }
+}
+
+function validateRequiredText(value, fieldName, maxLength = 255) {
+  if (value === undefined || value === null || value === '') {
+    throw createSheetError(`Thiếu tham số bắt buộc: ${fieldName}`, 1002, 400);
+  }
+  if (typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw createSheetError(`${fieldName} không được chỉ chứa khoảng trắng`, 1004, 400);
+  }
+  if (trimmed.length > maxLength || XSS_PATTERN.test(trimmed) || hasControlChars(trimmed)) {
+    throw createSheetError(
+      `${fieldName} chứa ký tự không hợp lệ hoặc vượt quá ${maxLength} ký tự`,
+      1004,
+      400
+    );
+  }
+  return trimmed;
+}
+
+function validateOptionalText(value, fieldName, maxLength = 255) {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw createSheetError(`${fieldName} không được rỗng`, 1004, 400);
+  }
+  if (trimmed.length > maxLength || XSS_PATTERN.test(trimmed) || hasControlChars(trimmed)) {
+    throw createSheetError(
+      `${fieldName} chứa ký tự không hợp lệ hoặc vượt quá ${maxLength} ký tự`,
+      1004,
+      400
+    );
+  }
+  return trimmed;
+}
+
+function validateOptionalNullableText(value, fieldName, maxLength = 500) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
+  const trimmed = value.trim();
+  if (value.length > 0 && !trimmed) {
+    throw createSheetError(`${fieldName} không được chỉ chứa khoảng trắng`, 1004, 400);
+  }
+  if (trimmed.length > maxLength || XSS_PATTERN.test(trimmed) || hasControlChars(trimmed)) {
+    throw createSheetError(
+      `${fieldName} chứa ký tự không hợp lệ hoặc vượt quá ${maxLength} ký tự`,
+      1004,
+      400
+    );
+  }
+  return trimmed === '' ? null : trimmed;
+}
 
 function isPositiveInt32(val) {
   const str = String(val).trim();
@@ -15,25 +105,39 @@ function parseBoolFlag(value, defaultValue = false, fieldName = 'flag') {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
   }
+  if (typeof value === 'object') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') {
     if (value === 1) return true;
     if (value === 0) return false;
+    throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
   }
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
     if (normalized === '1' || normalized === 'true') return true;
     if (normalized === '0' || normalized === 'false') return false;
+    throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
   }
-  throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
+  throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
 }
 
 function parseNonNegativeInt(value, fieldName) {
-  if (value === undefined || value === null || String(value).trim() === '') {
+  if (value === undefined || value === null || value === '') {
     throw createSheetError(`Thiếu tham số bắt buộc: ${fieldName}`, 1002, 400);
   }
   if (typeof value === 'boolean' || typeof value === 'object') {
     throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  }
+  if (typeof value === 'string' && value.trim() === '') {
+    throw createSheetError(`Giá trị ${fieldName} không được chỉ chứa khoảng trắng`, 1004, 400);
+  }
+  if (typeof value === 'number' && !Number.isInteger(value)) {
+    throw createSheetError(`Giá trị ${fieldName} phải là số nguyên`, 1004, 400);
   }
   const str = String(value).trim();
   if (!/^-?\d+$/.test(str)) {
@@ -47,15 +151,21 @@ function parseNonNegativeInt(value, fieldName) {
 }
 
 function parseVersionInput(versionInput, defaultText = '1.0') {
-  if (versionInput === undefined || versionInput === null || String(versionInput).trim() === '') {
+  if (versionInput === undefined || versionInput === null || versionInput === '') {
     return { versionText: defaultText, versionInt: 1 };
   }
   if (typeof versionInput === 'object' || typeof versionInput === 'boolean') {
     throw createSheetError('Kiểu dữ liệu version không hợp lệ', 1003, 400);
   }
+  if (typeof versionInput !== 'string' && typeof versionInput !== 'number') {
+    throw createSheetError('Kiểu dữ liệu version không hợp lệ', 1003, 400);
+  }
   const versionText = String(versionInput).trim();
+  if (!versionText) {
+    throw createSheetError('Giá trị version không được chỉ chứa khoảng trắng', 1004, 400);
+  }
   const normalized = versionText.replace(/^v/i, '');
-  if (!/^\d+(\.\d+)*$/.test(normalized)) {
+  if (!/^\d+(\.\d+)*$/.test(normalized) || versionText.length > 32) {
     throw createSheetError('Giá trị version không hợp lệ (VD: "1.0")', 1004, 400);
   }
   const major = parseInt(normalized.split('.')[0], 10);
@@ -64,14 +174,14 @@ function parseVersionInput(versionInput, defaultText = '1.0') {
 }
 
 function parseFilledBy(value, defaultValue = 'patient') {
-  if (value === undefined || value === null || String(value).trim() === '') {
+  if (value === undefined || value === null || value === '') {
     return defaultValue;
   }
   if (typeof value !== 'string') {
     throw createSheetError('Kiểu dữ liệu filled_by không hợp lệ', 1003, 400);
   }
   const normalized = value.trim().toLowerCase();
-  if (!ALLOWED_FILLED_BY.has(normalized)) {
+  if (!normalized || !ALLOWED_FILLED_BY.has(normalized)) {
     throw createSheetError(
       'Giá trị filled_by không hợp lệ (chỉ nhận: patient, doctor, patdoc, both)',
       1004,
@@ -84,9 +194,17 @@ function parseFilledBy(value, defaultValue = 'patient') {
 function serializeShowIfAnswer(value) {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  if (typeof value !== 'string') {
+    throw createSheetError('Kiểu dữ liệu show_if_answer không hợp lệ', 1003, 400);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw createSheetError('show_if_answer không được chỉ chứa khoảng trắng', 1004, 400);
+  }
+  if (trimmed.length > 500 || XSS_PATTERN.test(trimmed) || hasControlChars(trimmed)) {
+    throw createSheetError('show_if_answer không hợp lệ hoặc vượt quá 500 ký tự', 1004, 400);
+  }
+  return trimmed;
 }
 
 function formatStoredOptions(rawOptions) {
@@ -296,9 +414,17 @@ class TemplatesService {
    * 3. POST /templates
    */
   async createTemplate(body = {}) {
+    assertPlainObject(body);
     const { code_template, name, description, version, is_active } = body;
 
-    if (code_template === undefined || code_template === null || name === undefined || name === null) {
+    if (
+      code_template === undefined ||
+      code_template === null ||
+      code_template === '' ||
+      name === undefined ||
+      name === null ||
+      name === ''
+    ) {
       throw createSheetError('Thiếu trường bắt buộc: code_template, name', 1002, 400);
     }
     if (typeof code_template !== 'string' || typeof name !== 'string') {
@@ -306,14 +432,16 @@ class TemplatesService {
     }
 
     const codeTemplate = code_template.trim();
-    const title = name.trim();
-    if (!codeTemplate || !title) {
-      throw createSheetError('Thiếu trường bắt buộc: code_template, name', 1002, 400);
+    if (!codeTemplate || codeTemplate.length > 100 || !CODE_REGEX.test(codeTemplate) || XSS_PATTERN.test(codeTemplate)) {
+      throw createSheetError(
+        'code_template không đúng định dạng (bắt đầu bằng chữ cái, chỉ gồm chữ, số, _, ., :, - và tối đa 100 ký tự)',
+        1004,
+        400
+      );
     }
 
-    if (description !== undefined && description !== null && typeof description !== 'string') {
-      throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
-    }
+    const title = validateRequiredText(name, 'name', 255);
+    const cleanDescription = validateOptionalNullableText(description, 'description', 1000);
 
     const existing = await prisma.template.findUnique({ where: { codeTemplate } });
     if (existing) {
@@ -329,7 +457,7 @@ class TemplatesService {
           data: {
             codeTemplate,
             title,
-            description: description !== undefined ? description : null,
+            description: cleanDescription !== undefined ? cleanDescription : null,
             isActive,
             version: versionInt,
           },
@@ -361,26 +489,26 @@ class TemplatesService {
    * 4. PUT /templates/:id
    */
   async updateTemplate(idOrCode, body = {}) {
+    assertPlainObject(body);
     const tmpl = await resolveTemplate(idOrCode);
     const { name, description, version, is_active } = body;
 
+    if (
+      name === undefined &&
+      description === undefined &&
+      version === undefined &&
+      is_active === undefined
+    ) {
+      throw createSheetError('Thiếu dữ liệu cập nhật mẫu phiếu khám', 1002, 400);
+    }
+
     const updateData = {};
     if (name !== undefined) {
-      if (typeof name !== 'string') {
-        throw createSheetError('Kiểu dữ liệu name không hợp lệ', 1003, 400);
-      }
-      const trimmedName = name.trim();
-      if (!trimmedName) {
-        throw createSheetError('Tên mẫu phiếu khám không được rỗng', 1004, 400);
-      }
-      updateData.title = trimmedName;
+      updateData.title = validateOptionalText(name, 'name', 255);
     }
 
     if (description !== undefined) {
-      if (description !== null && typeof description !== 'string') {
-        throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
-      }
-      updateData.description = description;
+      updateData.description = validateOptionalNullableText(description, 'description', 1000);
     }
 
     let versionTextToSave = null;
@@ -474,20 +602,11 @@ class TemplatesService {
    * 6. POST /templates/:template_id/sections
    */
   async createSection(templateIdOrCode, body = {}) {
+    assertPlainObject(body);
     const tmpl = await resolveTemplate(templateIdOrCode);
     const { title, order, is_required, filled_by } = body;
 
-    if (title === undefined || title === null) {
-      throw createSheetError('Thiếu trường bắt buộc: title, order', 1002, 400);
-    }
-    if (typeof title !== 'string') {
-      throw createSheetError('Kiểu dữ liệu title không hợp lệ', 1003, 400);
-    }
-    const sectionName = title.trim();
-    if (!sectionName) {
-      throw createSheetError('Thiếu trường bắt buộc: title, order', 1002, 400);
-    }
-
+    const sectionName = validateRequiredText(title, 'title', 200);
     const orderIndex = parseNonNegativeInt(order, 'order');
     const isRequiredStr = parseBoolFlag(is_required, false, 'is_required') ? '1' : '0';
     const filledBy = parseFilledBy(filled_by, 'patient');
@@ -524,23 +643,26 @@ class TemplatesService {
    * 7. PUT /templates/sections/:id
    */
   async updateSection(sectionIdParam, body = {}) {
+    assertPlainObject(body);
     const section = await resolveSection(sectionIdParam);
     const existingMeta = await prisma.templateSectionMeta.findUnique({
       where: { sectionId: section.id },
     });
 
     const { title, order, is_required, filled_by } = body;
+    if (
+      title === undefined &&
+      order === undefined &&
+      is_required === undefined &&
+      filled_by === undefined
+    ) {
+      throw createSheetError('Thiếu dữ liệu cập nhật section', 1002, 400);
+    }
+
     const updateData = {};
 
     if (title !== undefined) {
-      if (typeof title !== 'string') {
-        throw createSheetError('Kiểu dữ liệu title không hợp lệ', 1003, 400);
-      }
-      const trimmedTitle = title.trim();
-      if (!trimmedTitle) {
-        throw createSheetError('Tiêu đề section không được rỗng', 1004, 400);
-      }
-      updateData.sectionName = trimmedTitle;
+      updateData.sectionName = validateOptionalText(title, 'title', 200);
     }
 
     if (order !== undefined) {
@@ -637,6 +759,7 @@ class TemplatesService {
    * 9. POST /templates/sections/:section_id/questions
    */
   async createQuestion(sectionIdParam, body = {}) {
+    assertPlainObject(body);
     const section = await resolveSection(sectionIdParam);
     const sectionMeta = await prisma.templateSectionMeta.findUnique({
       where: { sectionId: section.id },
@@ -659,10 +782,13 @@ class TemplatesService {
     if (
       question_id === undefined ||
       question_id === null ||
+      question_id === '' ||
       question_text === undefined ||
       question_text === null ||
+      question_text === '' ||
       type_question === undefined ||
-      type_question === null
+      type_question === null ||
+      type_question === ''
     ) {
       throw createSheetError(
         'Thiếu trường bắt buộc: question_id, question_text, type_question, order',
@@ -676,17 +802,34 @@ class TemplatesService {
       typeof question_text !== 'string' ||
       typeof type_question !== 'string'
     ) {
-      throw createSheetError('Kiểu dữ liệu question_id, question_text hoặc type_question không hợp lệ', 1003, 400);
+      throw createSheetError(
+        'Kiểu dữ liệu question_id, question_text hoặc type_question không hợp lệ',
+        1003,
+        400
+      );
     }
 
     const questionCode = question_id.trim();
-    const questionText = question_text.trim();
-    const questionType = type_question.trim().toLowerCase();
-
-    if (!questionCode || !questionText || !questionType) {
+    if (
+      !questionCode ||
+      questionCode.length > 50 ||
+      !CODE_REGEX.test(questionCode) ||
+      XSS_PATTERN.test(questionCode)
+    ) {
       throw createSheetError(
-        'Thiếu trường bắt buộc: question_id, question_text, type_question, order',
-        1002,
+        'question_id không đúng định dạng (bắt đầu bằng chữ cái, chỉ gồm chữ, số, _, ., :, - và tối đa 50 ký tự)',
+        1004,
+        400
+      );
+    }
+
+    const questionText = validateRequiredText(question_text, 'question_text', 500);
+
+    const questionType = type_question.trim().toLowerCase();
+    if (!questionType || !ALLOWED_QUESTION_TYPES.has(questionType)) {
+      throw createSheetError(
+        'type_question không hợp lệ (text, number, radio, checkbox, select, multi_select, file_upload...)',
+        1004,
         400
       );
     }
@@ -695,12 +838,8 @@ class TemplatesService {
     const isRequired = parseBoolFlag(is_required, false, 'is_required');
     const allowImageStr = parseBoolFlag(allow_image, false, 'allow_image') ? '1' : '0';
 
-    if (placeholder !== undefined && placeholder !== null && typeof placeholder !== 'string') {
-      throw createSheetError('Kiểu dữ liệu placeholder không hợp lệ', 1003, 400);
-    }
-    if (help_text !== undefined && help_text !== null && typeof help_text !== 'string') {
-      throw createSheetError('Kiểu dữ liệu help_text không hợp lệ', 1003, 400);
-    }
+    const cleanPlaceholder = validateOptionalNullableText(placeholder, 'placeholder', 255);
+    const cleanHelpText = validateOptionalNullableText(help_text, 'help_text', 500);
 
     // Check duplicate questionCode within the same template
     const duplicate = await prisma.templateQuestion.findFirst({
@@ -715,8 +854,14 @@ class TemplatesService {
 
     let parentQuestionIntId = null;
     let parentQuestionCode = null;
-    if (parent_question_id !== undefined && parent_question_id !== null && String(parent_question_id).trim() !== '') {
+    if (parent_question_id !== undefined && parent_question_id !== null && parent_question_id !== '') {
+      if (typeof parent_question_id !== 'string' && typeof parent_question_id !== 'number') {
+        throw createSheetError('Kiểu dữ liệu parent_question_id không hợp lệ', 1003, 400);
+      }
       const parentKey = String(parent_question_id).trim();
+      if (!parentKey || parentKey.length > 50 || XSS_PATTERN.test(parentKey) || hasControlChars(parentKey)) {
+        throw createSheetError('Giá trị parent_question_id không hợp lệ', 1004, 400);
+      }
       const parentWhere = isPositiveInt32(parentKey)
         ? {
             section: { templateId: section.templateId },
@@ -737,27 +882,29 @@ class TemplatesService {
         throw createSheetError('options phải là một mảng', 1003, 400);
       }
       normalizedOptions = options.map((opt, idx) => {
-        if (!opt || typeof opt !== 'object') {
+        if (!opt || typeof opt !== 'object' || Array.isArray(opt)) {
           throw createSheetError('Phần tử trong options không hợp lệ', 1003, 400);
         }
         if (
           opt.option_text === undefined ||
           opt.option_text === null ||
-          String(opt.option_text).trim() === '' ||
+          opt.option_text === '' ||
           opt.option_value === undefined ||
           opt.option_value === null ||
-          String(opt.option_value).trim() === ''
+          opt.option_value === ''
         ) {
           throw createSheetError('Mỗi lựa chọn cần có option_text và option_value', 1002, 400);
         }
+        const optText = validateRequiredText(opt.option_text, 'options.option_text', 255);
+        const optValue = validateRequiredText(opt.option_value, 'options.option_value', 100);
         const optOrder =
-          opt.order !== undefined && opt.order !== null && String(opt.order).trim() !== ''
+          opt.order !== undefined && opt.order !== null && opt.order !== ''
             ? String(parseNonNegativeInt(opt.order, 'options.order'))
             : String(idx + 1);
         return {
           id: String(idx + 1),
-          option_text: String(opt.option_text),
-          option_value: String(opt.option_value),
+          option_text: optText,
+          option_value: optValue,
           order: optOrder,
           trigger_image_upload: parseBoolFlag(opt.trigger_image_upload, false, 'trigger_image_upload')
             ? '1'
@@ -787,8 +934,8 @@ class TemplatesService {
       await tx.templateQuestionMeta.create({
         data: {
           questionId: question.id,
-          placeholder: placeholder ?? null,
-          helpText: help_text ?? null,
+          placeholder: cleanPlaceholder ?? null,
+          helpText: cleanHelpText ?? null,
           allowImage: allowImageStr,
           parentQuestionId: parentQuestionCode,
         },
@@ -814,6 +961,7 @@ class TemplatesService {
    * 10. PUT /templates/questions/:id
    */
   async updateQuestion(idOrCode, body = {}) {
+    assertPlainObject(body);
     const question = await resolveQuestion(idOrCode);
     const existingMeta = await prisma.templateQuestionMeta.findUnique({
       where: { questionId: question.id },
@@ -832,18 +980,26 @@ class TemplatesService {
       options,
     } = body;
 
+    if (
+      question_text === undefined &&
+      type_question === undefined &&
+      placeholder === undefined &&
+      order === undefined &&
+      is_required === undefined &&
+      parent_question_id === undefined &&
+      show_if_answer === undefined &&
+      help_text === undefined &&
+      allow_image === undefined &&
+      options === undefined
+    ) {
+      throw createSheetError('Thiếu dữ liệu cập nhật câu hỏi', 1002, 400);
+    }
+
     const updateData = {};
     const metaUpdate = {};
 
     if (question_text !== undefined) {
-      if (typeof question_text !== 'string') {
-        throw createSheetError('Kiểu dữ liệu question_text không hợp lệ', 1003, 400);
-      }
-      const trimmedText = question_text.trim();
-      if (!trimmedText) {
-        throw createSheetError('Nội dung câu hỏi không được rỗng', 1004, 400);
-      }
-      updateData.questionText = trimmedText;
+      updateData.questionText = validateOptionalText(question_text, 'question_text', 500);
     }
 
     if (type_question !== undefined) {
@@ -851,8 +1007,12 @@ class TemplatesService {
         throw createSheetError('Kiểu dữ liệu type_question không hợp lệ', 1003, 400);
       }
       const trimmedType = type_question.trim().toLowerCase();
-      if (!trimmedType) {
-        throw createSheetError('type_question không được rỗng', 1004, 400);
+      if (!trimmedType || !ALLOWED_QUESTION_TYPES.has(trimmedType)) {
+        throw createSheetError(
+          'type_question không hợp lệ (text, number, radio, checkbox, select, multi_select, file_upload...)',
+          1004,
+          400
+        );
       }
       updateData.questionType = trimmedType;
     }
@@ -870,17 +1030,11 @@ class TemplatesService {
     }
 
     if (placeholder !== undefined) {
-      if (placeholder !== null && typeof placeholder !== 'string') {
-        throw createSheetError('Kiểu dữ liệu placeholder không hợp lệ', 1003, 400);
-      }
-      metaUpdate.placeholder = placeholder;
+      metaUpdate.placeholder = validateOptionalNullableText(placeholder, 'placeholder', 255);
     }
 
     if (help_text !== undefined) {
-      if (help_text !== null && typeof help_text !== 'string') {
-        throw createSheetError('Kiểu dữ liệu help_text không hợp lệ', 1003, 400);
-      }
-      metaUpdate.helpText = help_text;
+      metaUpdate.helpText = validateOptionalNullableText(help_text, 'help_text', 500);
     }
 
     if (allow_image !== undefined) {
@@ -888,11 +1042,17 @@ class TemplatesService {
     }
 
     if (parent_question_id !== undefined) {
-      if (parent_question_id === null || String(parent_question_id).trim() === '') {
+      if (parent_question_id === null || parent_question_id === '') {
         updateData.parentQuestionId = null;
         metaUpdate.parentQuestionId = null;
       } else {
+        if (typeof parent_question_id !== 'string' && typeof parent_question_id !== 'number') {
+          throw createSheetError('Kiểu dữ liệu parent_question_id không hợp lệ', 1003, 400);
+        }
         const parentKey = String(parent_question_id).trim();
+        if (!parentKey || parentKey.length > 50 || XSS_PATTERN.test(parentKey) || hasControlChars(parentKey)) {
+          throw createSheetError('Giá trị parent_question_id không hợp lệ', 1004, 400);
+        }
         if (parentKey === question.questionCode || parentKey === String(question.id)) {
           throw createSheetError('Câu hỏi không thể tự tham chiếu chính mình làm câu hỏi cha', 1004, 400);
         }
@@ -930,20 +1090,28 @@ class TemplatesService {
           if (Number.isInteger(num) && num > maxNumericId) maxNumericId = num;
         }
         for (const incomingOpt of options) {
-          if (incomingOpt && incomingOpt.id !== undefined && incomingOpt.id !== null && String(incomingOpt.id).trim() !== '') {
-            const idStr = String(incomingOpt.id).trim();
-            usedIds.add(idStr);
-            const num = Number(idStr);
-            if (Number.isInteger(num) && num > maxNumericId) maxNumericId = num;
+          if (incomingOpt && typeof incomingOpt === 'object' && !Array.isArray(incomingOpt)) {
+            if (incomingOpt.id !== undefined && incomingOpt.id !== null && incomingOpt.id !== '') {
+              if (typeof incomingOpt.id !== 'string' && typeof incomingOpt.id !== 'number') {
+                throw createSheetError('Kiểu dữ liệu options.id không hợp lệ', 1003, 400);
+              }
+              const idStr = String(incomingOpt.id).trim();
+              if (!idStr || idStr.length > 50 || XSS_PATTERN.test(idStr)) {
+                throw createSheetError('Giá trị options.id không hợp lệ', 1004, 400);
+              }
+              usedIds.add(idStr);
+              const num = Number(idStr);
+              if (Number.isInteger(num) && num > maxNumericId) maxNumericId = num;
+            }
           }
         }
 
         finalOptions = options.map((opt, idx) => {
-          if (!opt || typeof opt !== 'object') {
+          if (!opt || typeof opt !== 'object' || Array.isArray(opt)) {
             throw createSheetError('Phần tử trong options không hợp lệ', 1003, 400);
           }
 
-          const hasId = opt.id !== undefined && opt.id !== null && String(opt.id).trim() !== '';
+          const hasId = opt.id !== undefined && opt.id !== null && opt.id !== '';
           let optId;
           if (hasId) {
             optId = String(opt.id).trim();
@@ -957,16 +1125,20 @@ class TemplatesService {
 
           const existingOpt = existingMap.get(optId);
           const optionText =
-            opt.option_text !== undefined ? String(opt.option_text) : existingOpt?.option_text;
+            opt.option_text !== undefined
+              ? validateOptionalText(opt.option_text, 'options.option_text', 255)
+              : existingOpt?.option_text;
           const optionValue =
-            opt.option_value !== undefined ? String(opt.option_value) : existingOpt?.option_value;
+            opt.option_value !== undefined
+              ? validateOptionalText(opt.option_value, 'options.option_value', 100)
+              : existingOpt?.option_value;
 
           if (!optionText || !String(optionText).trim() || !optionValue || !String(optionValue).trim()) {
             throw createSheetError('Mỗi lựa chọn cần có option_text và option_value', 1002, 400);
           }
 
           const optOrder =
-            opt.order !== undefined && opt.order !== null && String(opt.order).trim() !== ''
+            opt.order !== undefined && opt.order !== null && opt.order !== ''
               ? String(parseNonNegativeInt(opt.order, 'options.order'))
               : existingOpt?.order ?? String(idx + 1);
 
