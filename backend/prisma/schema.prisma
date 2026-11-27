@@ -1,6 +1,6 @@
 // ==============================================================================
 // PRISMA SCHEMA CHO CSDL PHỤ (SUB DATABASE TRÊN SUPABASE)
-// Quản lý các module mở rộng theo đúng yêu cầu Slide APIs mà CSDL chung không có
+// Bao toàn 100% các bảng hiện có của nhóm + bổ sung bảng *Meta cho Slide 3, 4, 11
 // ==============================================================================
 
 generator client {
@@ -13,9 +13,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ------------------------------------------------------------------------------
+model TestSubConnection {
+  id       Int       @id @default(autoincrement())
+  ghiChu   String    @map("ghi_chu")
+  thoiDiem DateTime? @default(now()) @map("thoi_diem") @db.Timestamptz(6)
+
+  @@map("test_sub_connection")
+}
+
 // 1. TOKEN BLACKLIST (Auth & Logout - Slide 2)
-// ------------------------------------------------------------------------------
 model TokenBlacklist {
   id             Int      @id @default(autoincrement())
   token          String   @unique
@@ -29,13 +35,10 @@ model TokenBlacklist {
   @@map("token_blacklist")
 }
 
-// ------------------------------------------------------------------------------
 // 2. KHOA / PHÒNG BAN CHUYÊN MÔN (Departments - Slide 4)
-// (CSDL chung chỉ có chinhanh & phongkham, thiếu bảng departments theo Slide 4)
-// ------------------------------------------------------------------------------
 model Department {
   id             Int      @id @default(autoincrement())
-  maChiNhanh     BigInt   @map("ma_chi_nhanh")      // Khóa logic trỏ tới chinhanh ở DB chính
+  maChiNhanh     BigInt   @map("ma_chi_nhanh")
   departmentCode String   @unique @map("department_code")
   departmentName String   @map("department_name")
   description    String?  @map("description")
@@ -46,14 +49,12 @@ model Department {
   @@map("departments")
 }
 
-// ------------------------------------------------------------------------------
 // 3. THÔNG BÁO ĐẨY & FCM DEVICE TOKENS (Push Notifications - Slide 10)
-// ------------------------------------------------------------------------------
 model DeviceToken {
   id         Int      @id @default(autoincrement())
-  userId     BigInt   @map("user_id")              // ma_tai_khoan
+  userId     BigInt   @map("user_id")
   fcmToken   String   @unique @map("fcm_token")
-  deviceType String?  @default("WEB") @map("device_type") // WEB, ANDROID, IOS
+  deviceType String?  @default("WEB") @map("device_type")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -67,7 +68,7 @@ model Notification {
   title     String   @map("title")
   body      String   @map("body")
   isRead    Boolean  @default(false) @map("is_read")
-  type      String   @default("SYSTEM") @map("type") // APPOINTMENT, UAS7_REMINDER, PRESCRIPTION
+  type      String   @default("SYSTEM") @map("type")
   data      Json?    @map("data")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -75,12 +76,10 @@ model Notification {
   @@map("notifications")
 }
 
-// ------------------------------------------------------------------------------
 // 4. BỘ TẠO MẪU PHIẾU KHÁM ĐỘNG (Dynamic Form Builder - Slide 11)
-// ------------------------------------------------------------------------------
 model Template {
   id           Int               @id @default(autoincrement())
-  codeTemplate String            @unique @map("code_template") // Mã định danh duy nhất (VD: TMPL_MAYDAY_01)
+  codeTemplate String            @unique @map("code_template")
   title        String            @map("title")
   description  String?           @map("description")
   isActive     Boolean           @default(true) @map("is_active")
@@ -106,23 +105,25 @@ model TemplateSection {
 }
 
 model TemplateQuestion {
-  id           Int             @id @default(autoincrement())
-  sectionId    Int             @map("section_id")
-  questionText String          @map("question_text")
-  questionType String          @map("question_type") // TEXT, NUMBER, SELECT, MULTI_SELECT, RADIO, DATE
-  options      Json?           @map("options")       // Mảng các lựa chọn nếu là SELECT/RADIO
-  isRequired   Boolean         @default(false) @map("is_required")
-  orderIndex   Int             @default(0) @map("order_index")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
-  section      TemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  id               Int             @id @default(autoincrement())
+  sectionId        Int             @map("section_id")
+  questionCode     String?         @map("question_code")
+  questionText     String          @map("question_text")
+  questionType     String          @map("question_type")
+  options          Json?           @map("options")
+  isRequired       Boolean         @default(false) @map("is_required")
+  parentQuestionId Int?            @map("parent_question_id")
+  showIfAnswer     String?         @map("show_if_answer")
+  filledBy         String?         @default("both") @map("filled_by")
+  orderIndex       Int             @default(0) @map("order_index")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  section          TemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 
   @@map("template_questions")
 }
 
-// ------------------------------------------------------------------------------
-// 5. MỞ RỘNG KHO ẢNH TỔN THƯƠNG & STORAGE (Lesion Media & Bucket - Slide 8 & 9)
-// ------------------------------------------------------------------------------
+// 5. KHO ẢNH TỔN THƯƠNG MỞ RỘNG (Slide 8 & 9)
 model AnhTonThuongMoRong {
   id              Int      @id @default(autoincrement())
   maHoSo          BigInt   @map("ma_ho_so")
@@ -133,6 +134,11 @@ model AnhTonThuongMoRong {
   publicUrl       String   @map("public_url")
   dinhDangTep     String?  @map("dinh_dang_tep")
   dungLuongBytes  BigInt?  @map("dung_luong_bytes")
+  questionId      String?  @map("question_id")
+  mediaType       String?  @map("media_type")
+  category        String?  @map("category")
+  description     String?  @map("description")
+  tenTepGoc       String?  @map("ten_tep_goc")
   toaDoX          Float?   @map("toa_do_x")
   toaDoY          Float?   @map("toa_do_y")
   vungCoThe       String?  @map("vung_co_the")
@@ -145,4 +151,261 @@ model AnhTonThuongMoRong {
   @@index([maHoSo])
   @@index([maTaiKhoan])
   @@map("anh_ton_thuong_mo_rong")
+}
+
+// 6. DỮ LIỆU PHỤ TRỢ BỆNH NHÂN & BỆNH ÁN (đồng bộ nhánh ngocquybenh_nhan)
+model PatientExtraProfile {
+  maNguoi                 BigInt    @id @map("ma_nguoi")
+  genderRaw               String?   @map("gender_raw")
+  yearOfBirth             Int?      @map("year_of_birth")
+  workPlace               String?   @map("work_place")
+  firstVisit              DateTime? @map("first_visit")
+  healthInsuranceValidate String?   @map("health_insurance_validate")
+  medicalHistory          String?   @map("medical_history")
+  allergyHistory          String?   @map("allergy_history")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  @@map("patient_extra_profiles")
+}
+
+model PasswordResetToken {
+  id         Int      @id @default(autoincrement())
+  maTaiKhoan BigInt   @map("ma_tai_khoan")
+  phone      String   @map("phone")
+  otpCode    String   @map("otp_code")
+  expiresAt  DateTime @map("expires_at")
+  isUsed     Boolean  @default(false) @map("is_used")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@map("password_reset_tokens")
+}
+
+model MedicalRecordMeta {
+  maHoSo            BigInt    @id @map("ma_ho_so")
+  maBenhNhan        BigInt    @map("ma_benh_nhan")
+  templateId        Int?      @map("template_id")
+  recordSubtype     String?   @map("record_subtype")
+  screeningDecision String?   @map("screening_decision")
+  lyDoDenKham       String?   @map("ly_do_den_kham")
+  trieuChungChinh   String?   @map("trieu_chung_chinh")
+  thoiGianKhoiPhat  String?   @map("thoi_gian_khoi_phat")
+  doctorConclusion  String?   @map("doctor_conclusion")
+  doctorNotes       String?   @map("doctor_notes")
+  assignedDoctorId  BigInt?   @map("assigned_doctor_id")
+  createdBy         BigInt?   @map("created_by")
+  lockedAt          DateTime? @map("locked_at")
+  closedAt          DateTime? @map("closed_at")
+  closedBy          BigInt?   @map("closed_by")
+  acceptedAt        DateTime? @map("accepted_at")
+  acceptedBy        BigInt?   @map("accepted_by")
+  completedAt       DateTime? @map("completed_at")
+  completedBy       BigInt?   @map("completed_by")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([maBenhNhan])
+  @@map("medical_record_meta")
+}
+
+model MedicalRecordAnswer {
+  id               Int      @id @default(autoincrement())
+  maHoSo           BigInt   @map("ma_ho_so")
+  questionId       Int      @map("question_id")
+  questionCode     String?  @map("question_code")
+  questionOptionId Int?     @map("question_option_id")
+  answerValue      String?  @map("answer_value")
+  answerJson       Json?    @map("answer_json")
+  answeredBy       BigInt?  @map("answered_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([maHoSo, questionId])
+  @@index([maHoSo])
+  @@map("medical_record_answers")
+}
+
+model AnswerImage {
+  id           Int      @id @default(autoincrement())
+  maHoSo       BigInt   @map("ma_ho_so")
+  questionId   Int      @map("question_id")
+  attachmentId BigInt   @map("attachment_id")
+  optionValue  String?  @map("option_value")
+  publicUrl    String?  @map("public_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([maHoSo, questionId, attachmentId])
+  @@index([maHoSo, questionId])
+  @@map("answer_images")
+}
+
+model Uas7Note {
+  id                Int      @id @default(autoincrement())
+  maBenhNhan        BigInt   @map("ma_benh_nhan")
+  maHoSoMan         BigInt?  @map("ma_ho_so_man")
+  scoreDate         String   @map("score_date")
+  whealScore        Int      @map("wheal_score")
+  itchScore         Int      @map("itch_score")
+  uasDaily          Int      @map("uas_daily")
+  notes             String?  @map("notes")
+  medicationChanged Boolean  @default(false) @map("medication_changed")
+  medicationStatus  String?  @map("medication_status")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([maBenhNhan, scoreDate])
+  @@map("uas7_notes")
+}
+
+model LesionEpisodeMeta {
+  maDotTonThuong     BigInt    @id @map("ma_dot_ton_thuong")
+  maHoSo             BigInt    @map("ma_ho_so")
+  maBenhNhan         BigInt    @map("ma_benh_nhan")
+  hasLesions         Boolean   @default(true) @map("has_lesions")
+  triggerCategory    String?   @map("trigger_category")
+  occurredAt         DateTime? @map("occurred_at")
+  contextTags        String?   @map("context_tags")
+  contextOther       String?   @map("context_other")
+  medicationTakenAgo String?   @map("medication_taken_ago")
+  medicationUnit     String?   @map("medication_unit")
+  endedAt            DateTime? @map("ended_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([maHoSo])
+  @@map("lesion_episode_meta")
+}
+
+model LesionLocationMeta {
+  maViTriTonThuong   BigInt    @id @map("ma_vi_tri_ton_thuong")
+  maDotTonThuong     BigInt    @map("ma_dot_ton_thuong")
+  bodyPart           String    @map("body_part")
+  lesionType         String?   @map("lesion_type")
+  occurredAt         DateTime? @map("occurred_at")
+  contextTags        String?   @map("context_tags")
+  contextOther       String?   @map("context_other")
+  medicationName     String?   @map("medication_name")
+  medicationTakenAgo String?   @map("medication_taken_ago")
+  medicationUnit     String?   @map("medication_unit")
+  itchScoreNrs       Int?      @map("itch_score_nrs")
+  painScoreNrs       Int?      @map("pain_score_nrs")
+  notes              String?   @map("notes")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([maDotTonThuong])
+  @@map("lesion_location_meta")
+}
+
+model LesionPhotoMeta {
+  maAnh        BigInt   @id @map("ma_anh")
+  annotatedUrl String?  @map("annotated_url")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("lesion_photo_meta")
+}
+
+model LabRequest {
+  id          Int              @id @default(autoincrement())
+  maHoSo      BigInt           @map("ma_ho_so")
+  requestedBy BigInt           @map("requested_by")
+  status      String           @default("pending") @map("status")
+  note        String?          @map("note")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  items       LabRequestItem[]
+
+  @@index([maHoSo])
+  @@map("lab_requests")
+}
+
+model LabRequestItem {
+  id           Int        @id @default(autoincrement())
+  labRequestId Int        @map("lab_request_id")
+  testName     String     @map("test_name")
+  description  String?    @map("description")
+  resultId     Int?       @map("result_id")
+  resultValue  String?    @map("result_value")
+  concludedBy  BigInt?    @map("concluded_by")
+  resultNote   String?    @map("result_note")
+  labRequest   LabRequest @relation(fields: [labRequestId], references: [id], onDelete: Cascade)
+
+  @@index([labRequestId])
+  @@map("lab_request_items")
+}
+
+// ------------------------------------------------------------------------------
+// 7. METADATA MỞ RỘNG CHO SLIDE 3, 4 & 11 (Bổ sung không đụng CSDL chính)
+// ------------------------------------------------------------------------------
+model BranchMeta {
+  maChiNhanh BigInt   @id @map("ma_chi_nhanh")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("branch_meta")
+}
+
+model RoomMeta {
+  maPhongKham  BigInt   @id @map("ma_phong_kham")
+  departmentId Int?     @map("department_id")
+  description  String?  @map("description")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([departmentId])
+  @@map("room_meta")
+}
+
+model StaffAssignmentMeta {
+  maNhanVien   BigInt   @id @map("ma_nhan_vien")
+  branchId     BigInt?  @map("branch_id")
+  departmentId Int?     @map("department_id")
+  roomId       BigInt?  @map("room_id")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([roomId])
+  @@index([departmentId])
+  @@map("staff_assignment_meta")
+}
+
+model RoleMeta {
+  maVaiTro     BigInt   @id @map("ma_vai_tro")
+  parentRoleId BigInt?  @map("parent_role_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("role_meta")
+}
+
+model RolePermissionMeta {
+  id         Int      @id @default(autoincrement())
+  maVaiTro   BigInt   @map("ma_vai_tro")
+  maQuyenHan BigInt   @map("ma_quyen_han")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  @@unique([maVaiTro, maQuyenHan])
+  @@map("role_permission_meta")
+}
+
+model TemplateVersionMeta {
+  templateId  Int      @id @map("template_id")
+  versionText String   @default("1.0") @map("version_text")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("template_version_meta")
+}
+
+model TemplateSectionMeta {
+  sectionId  Int      @id @map("section_id")
+  isRequired String   @default("0") @map("is_required")
+  filledBy   String   @default("patient") @map("filled_by")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("template_section_meta")
+}
+
+model TemplateQuestionMeta {
+  questionId       Int      @id @map("question_id")
+  placeholder      String?  @map("placeholder")
+  helpText         String?  @map("help_text")
+  allowImage       String   @default("0") @map("allow_image")
+  parentQuestionId String?  @map("parent_question_code")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("template_question_meta")
 }

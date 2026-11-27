@@ -1,19 +1,20 @@
 const jwt = require('jsonwebtoken');
-const { errorResponse } = require('../common/response');
+const { sheetError } = require('../common/response');
 const prisma = require('../config/prisma');
 
 /**
- * Middleware xác thực người dùng qua JWT thật & kiểm tra Token Blacklist trên Sub DB
+ * Middleware xác thực người dùng qua JWT & kiểm tra Token Blacklist trên Sub DB.
+ * Mã lỗi chuẩn Tab 3 (Bảng mã gộp): 9998 (Token is invalid.), 1009 (Not access.)
  */
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader) {
-    return errorResponse(res, 'Chưa đăng nhập (Thiếu header Authorization)', 401, 3003);
+    return sheetError(res, 'Token is invalid. (Thiếu header Authorization)', 401, 9998);
   }
 
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return errorResponse(res, 'Định dạng token không đúng chuẩn: Bearer <token>', 401, 3001);
+    return sheetError(res, 'Token is invalid. (Sai định dạng Bearer <token>)', 401, 9998);
   }
 
   const token = parts[1];
@@ -21,18 +22,17 @@ const authenticate = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'mayday_super_secret_jwt_key_2026');
 
-    // Kiểm tra Token Blacklist trên Sub Database (Supabase qua Prisma)
     try {
       const blacklisted = await prisma.tokenBlacklist.findUnique({
         where: { token },
       });
 
       if (blacklisted) {
-        return errorResponse(res, 'Token này đã bị thu hồi do đăng xuất. Vui lòng đăng nhập lại.', 401, 3001);
+        return sheetError(res, 'Token is invalid. (Token đã bị thu hồi)', 401, 9998);
       }
     } catch (dbErr) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('[Token Blacklist Warning] Chưa thể kiểm tra blacklist trên Sub DB:', dbErr.message);
+        console.warn('[Token Blacklist Warning]', dbErr.message);
       }
     }
 
@@ -41,39 +41,36 @@ const authenticate = async (req, res, next) => {
     return next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      return errorResponse(res, 'Token đã hết hạn, vui lòng đăng nhập lại', 401, 3002);
+      return sheetError(res, 'Token is invalid. (Token đã hết hạn)', 401, 9998);
     }
-    return errorResponse(res, 'Token không hợp lệ hoặc đã bị thay đổi', 401, 3001);
+    return sheetError(res, 'Token is invalid.', 401, 9998);
   }
 };
 
 /**
- * Middleware kiểm tra vai trò (Role-Based Access Control)
- * Hỗ trợ so sánh không phân biệt hoa/thường ('admin', 'ADMIN', 'bac_si', 'BAC_SI' đều hợp lệ)
- * @param {Array<string>} roles Danh sách vai trò hợp lệ (VD: ['admin', 'bac_si'])
+ * Middleware kiểm tra vai trò (RBAC). Trả mã gộp 1009 (Not access.) khi không đủ quyền.
  */
 const authorize = (roles = []) => {
   return (req, res, next) => {
     if (!req.user) {
-      return errorResponse(res, 'Người dùng chưa được xác thực', 401, 3003);
+      return sheetError(res, 'Token is invalid.', 401, 9998);
     }
 
     if (roles.length > 0) {
       const userRole = (req.user.vai_tro || '').toLowerCase().trim();
-      const allowedRoles = roles.map(r => r.toLowerCase().trim());
+      const allowedRoles = roles.map((r) => r.toLowerCase().trim());
 
       if (!allowedRoles.includes(userRole)) {
-        const isNeedAdmin = allowedRoles.includes('admin');
-        return errorResponse(
+        return sheetError(
           res,
-          `Quyền truy cập bị từ chối. Chức năng yêu cầu quyền: ${roles.join(', ')}`,
+          `Not access. Yêu cầu vai trò: ${roles.join(', ')}`,
           403,
-          isNeedAdmin ? 3102 : 3101
+          1009
         );
       }
     }
 
-    next();
+    return next();
   };
 };
 

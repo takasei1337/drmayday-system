@@ -1,7 +1,212 @@
 @import "tailwindcss";
+@import "./core/design-system/uber-base-tokens.css";
 
-@layer base {
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Inter', monospace;
 }
+
+/* ==========================================================================
+   PATIENT MANAGEMENT SYSTEM — DESIGN SYSTEM (CLINICAL ENTERPRISE)
+   Enforced Hierarchy:
+   - Typography: Inter Only (Exclusive Font Family)
+   - Brand Primary: #091F5B
+   - Surface Page: #F8FAFC, Surface Card: #FFFFFF
+   - Border Radius Hierarchy:
+     * Buttons (Nút bấm): Bo góc chuẩn 6px.
+     * Inputs / Select / Textarea: Bo góc chuẩn 6px.
+     * Cards, Containers, Panels, Tables: Bo góc chuẩn 8px.
+     * Modals / Dialogs: Bo góc chuẩn 10px.
+     * Status Badges / Tags: Bo góc chuẩn 4px (thẻ chữ nhật gọn gàng).
+     * Avatars & Circular controls: Bo tròn 50%.
+   ========================================================================== */
+
+/* 1. Global Document Root (Inter Typography Enforced) */
+html,
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--base-bg-canvas, #f3f6fc);
+  color: var(--base-content-primary, #111827);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Enforce Inter across code, pre, monospace elements with tabular nums */
+code,
+kbd,
+samp,
+pre,
+.base-mono {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Suppress browser native search cancel/clear buttons */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+input[type="search"]::-ms-clear,
+input[type="search"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 2. Form Controls (radius: 16px) */
+.base-input,
+.base-select,
+.base-textarea,
+.base-input-group,
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-radius: var(--radius-input, 6px) !important;
+}
+select.base-select {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: none !important;
+}
+select.base-select::picker-icon {
+  display: none !important;
+  content: none !important;
+}
+
+/* 3. Action Buttons (Clinical Enterprise: 6px corner radius) */
+.base-btn,
+.base-btn-primary,
+.base-btn-secondary,
+.base-btn-tertiary,
+.base-btn-ghost,
+.base-btn-accent,
+.base-btn-danger,
+.base-btn-destructive,
+.base-btn-hero-primary,
+.base-btn-hero-accent,
+button.base-btn,
+a.base-btn {
+  border-radius: var(--radius-button, 6px) !important;
+}
+
+/* Button Icon Only & Circular Controls */
+.base-btn.base-btn-icon-only,
+.base-btn-icon,
+.btn-icon {
+  border-radius: var(--radius-button, 6px) !important;
+}
+.base-btn.base-btn-circle,
+.base-modal-close,
+.base-page-btn {
+  border-radius: 50% !important;
+}
+
+/* 4. Cards & Containers (Clinical Enterprise: 8px) */
+.base-card,
+.base-stat-card,
+.base-table-container,
+.base-dropdown,
+.base-dropdown-menu,
+.base-panel,
+.alert,
+.clinical-alert-red-flag {
+  border-radius: var(--radius-card, 8px) !important;
+}
+
+/* 5. Modals & Dialogs (Clinical Enterprise: 10px) */
+.base-modal-dialog,
+.base-modal-content {
+  border-radius: var(--radius-modal, 10px) !important;
+}
+
+/* 6. Status Badges, Chips (Clinical Enterprise: 4px restrained rectangle) */
+.base-tag,
+.base-badge,
+.status-badge,
+.base-nav-badge,
+.base-role-badge,
+.base-tag-chip,
+.base-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-badge, 4px) !important;
+  font-size: 12px !important;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* Segmented Control Pills (Pill shapes only where functionally appropriate) */
+.base-pill-group,
+.base-pill-item {
+  border-radius: var(--radius-button, 6px) !important;
+}
+
+/* 7. Avatars (Riêng Avatar bo tròn 50%) */
+.base-avatar,
+.avatar,
+.base-staff-avatar {
+  border-radius: 50% !important;
+}
+
+/* 8. Data Tables (radius: 8px with horizontal scrolling and sleek scrollbars) */
+.base-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--base-border-opaque, #e5e7eb) !important;
+  border-radius: var(--radius-card, 8px) !important;
+  background-color: var(--base-bg-surface, #ffffff);
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 #F1F5F9;
+}
+.base-table-container::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.base-table-container::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #F1F5F9;
+  border-radius: 999px;
+  margin: 0 4px;
+}
+.base-table-container::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 999px;
+  border: 2px solid #F1F5F9;
+}
+.base-table-container::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* 9. Restrained Clinical Enterprise Interactivity (Tối giản tinh gọn - Zero Hover Lift / Zero Elevation Jump) */
+.base-card:hover,
+.base-btn:hover,
+.base-stat-card:hover,
+.base-notification-card:hover,
+.base-notification-item:hover,
+.base-selection-card:hover,
+a.base-card:hover,
+button.base-card:hover,
+.base-card-interactive:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Suppress all unnecessary hover translations, scale, and elevation jumps */
+[class*="group-hover:translate"],
+[class*="hover:translate"],
+[class*="group-hover:scale"],
+[class*="hover:scale"] {
+  transform: none !important;
+}
+

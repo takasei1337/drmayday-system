@@ -8,6 +8,9 @@ const { notFoundHandler, errorHandler } = require('./middlewares/error.middlewar
 // Import routes theo từng domain nghiệp vụ
 const authRoutes = require('./modules/auth/auth.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
+const adminRbacRoutes = require('./modules/admin/adminRbac.routes');
+const topologyRoutes = require('./modules/admin/topology.routes');
+const templatesRoutes = require('./modules/templates/templates.routes');
 const patientRoutes = require('./modules/patient/patient.routes');
 const clinicalRoutes = require('./modules/clinical/clinical.routes');
 const lesionRoutes = require('./modules/lesion/lesion.routes');
@@ -27,13 +30,23 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Gắn các tuyến đường API
-app.use('/api/auth', authRoutes);                  // Chuẩn theo Google Sheets & đề bài
-app.use('/api/v1/auth', authRoutes);               // Tương thích ngược phiên bản v1
-app.use('/api/v1/admin', adminRoutes);         // Slide 3 & 4 (Admin, Topology, Phòng khám)
-app.use('/api/v1/patients', patientRoutes);    // Slide 5 (Bệnh nhân & Hồ sơ bệnh án)
-app.use('/api/v1/clinical', clinicalRoutes);   // Slide 6 & 7 (Lâm sàng, Đơn thuốc, UAS7)
-app.use('/api/v1/lesions', lesionRoutes);      // Slide 8, 9, 10, 11 (Tổn thương da, Ảnh, Supabase)
+// Gắn các tuyến đường API (hỗ trợ cả /api và /api/v1 theo chuẩn GoogleSheets_APIs.xlsx)
+app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
+
+app.use('/api', adminRbacRoutes);
+app.use('/api/v1', adminRbacRoutes);
+
+app.use('/api', topologyRoutes);
+app.use('/api/v1', topologyRoutes);
+
+app.use('/api/templates', templatesRoutes);
+app.use('/api/v1/templates', templatesRoutes);
+
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/patients', patientRoutes);
+app.use('/api/v1/clinical', clinicalRoutes);
+app.use('/api/v1/lesions', lesionRoutes);
 
 // Xử lý lỗi tập trung
 app.use(notFoundHandler);

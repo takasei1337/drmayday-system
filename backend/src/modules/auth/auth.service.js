@@ -109,7 +109,7 @@ class AuthService {
 
       // 4. Thêm vào bảng benhnhan
       const bnQuery = `
-        INSERT INTO public.benhnhan (ma_nguoi)
+        INSERT INTO public.benhnhan (ma_benh_nhan)
         VALUES ($1)
         RETURNING ma_benh_nhan
       `;
@@ -119,12 +119,12 @@ class AuthService {
       await client.query('COMMIT');
 
       return {
-        id: Number(ma_tai_khoan),
+        user_id: Number(ma_tai_khoan),
         full_name: fullName,
         phone,
         gender,
         role_id: Number(roleId),
-        status: 1,
+        is_active: 1,
         created_at: thoi_diem_tao ? thoi_diem_tao.toISOString() : new Date().toISOString(),
       };
     } catch (err) {
@@ -216,15 +216,14 @@ class AuthService {
     });
 
     const userInfo = {
-      user_id: Number(user.ma_tai_khoan),
-      display_name: formatDisplayName(user.ho_ten),
+      user_id: String(user.ma_tai_khoan),
       full_name: user.ho_ten,
       phone: user.so_dien_thoai || user.ten_dang_nhap,
-      role_id: Number(user.ma_vai_tro),
+      role_id: String(user.ma_vai_tro),
     };
 
     return {
-      access_token: token,
+      token,
       user_info: userInfo,
     };
   }
@@ -453,7 +452,7 @@ class AuthService {
       await client.query('COMMIT');
 
       return {
-        id: Number(ma_tai_khoan),
+        user_id: Number(ma_tai_khoan),
         full_name: fullName,
         role_id: Number(roleId),
         branch_id: Number(branchId),
