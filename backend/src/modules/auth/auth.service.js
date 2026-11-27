@@ -22,6 +22,14 @@ function isValidVNPhone(phone) {
   return /^(0[3|5|7|8|9])[0-9]{8}$/.test(phone.trim());
 }
 
+function normalizeDbGender(gender) {
+  if (!gender || typeof gender !== 'string') return null;
+  const g = gender.trim().toLowerCase();
+  if (g === 'nam' || g === 'male' || g === 'm') return 'Nam';
+  if (g === 'nu' || g === 'nữ' || g === 'female' || g === 'f') return 'Nu';
+  return null;
+}
+
 class AuthService {
   /**
    * 1.1 Đăng ký tài khoản (Sheet 1.1 signup)
@@ -30,7 +38,8 @@ class AuthService {
     const fullName = (data.full_name || data.ho_ten || '').trim();
     const phone = (data.phone || data.so_dien_thoai || '').trim();
     const password = data.password || data.mat_khau;
-    const gender = data.gender || data.gioi_tinh || 'other';
+    const rawGender = data.gender || data.gioi_tinh || null;
+    const dbGender = normalizeDbGender(rawGender);
 
     if (!fullName || !phone || !password) {
       const err = new Error('Thiếu trường thông tin bắt buộc');
@@ -85,7 +94,7 @@ class AuthService {
       const nguoiRes = await client.query(nguoiQuery, [
         fullName,
         phone,
-        gender,
+        dbGender,
         data.ngay_sinh || null,
         data.dia_chi_tinh_tp || null,
       ]);
@@ -93,9 +102,9 @@ class AuthService {
 
       // 2. Lấy role BENH_NHAN
       const vtRes = await client.query(
-        "SELECT ma_vai_tro FROM public.vaitro WHERE ten_vai_tro = 'BENH_NHAN' OR LOWER(ten_vai_tro) = 'patient' LIMIT 1"
+        "SELECT ma_vai_tro FROM public.vaitro WHERE LOWER(ten_vai_tro) IN ('benh_nhan', 'patient') LIMIT 1"
       );
-      const roleId = vtRes.rows[0] ? vtRes.rows[0].ma_vai_tro : 3;
+      const roleId = vtRes.rows[0] ? vtRes.rows[0].ma_vai_tro : 4;
 
       // 3. Thêm vào bảng taikhoan
       const tkQuery = `
@@ -122,7 +131,7 @@ class AuthService {
         user_id: Number(ma_tai_khoan),
         full_name: fullName,
         phone,
-        gender,
+        gender: rawGender,
         role_id: Number(roleId),
         is_active: 1,
         created_at: thoi_diem_tao ? thoi_diem_tao.toISOString() : new Date().toISOString(),
