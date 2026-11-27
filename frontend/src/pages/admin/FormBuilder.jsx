@@ -130,7 +130,7 @@ export default function FormBuilder() {
         .post(`/templates/${cleanCode}/sections`, {
           title: "Thông Tin Lâm Sàng Cơ Bản",
           name: "Thông Tin Lâm Sàng Cơ Bản",
-          order: 1,
+          order: "1",
           filled_by: "both",
         })
         .catch(() => {});
@@ -194,7 +194,7 @@ export default function FormBuilder() {
       await apiClient.post(`/templates/${selectedTemplate.code}/sections`, {
         title: sectionForm.title.trim(),
         name: sectionForm.title.trim(),
-        order: Number(sectionForm.order) || selectedTemplate.sections.length + 1,
+        order: String(Number(sectionForm.order) || selectedTemplate.sections.length + 1),
         filled_by: sectionForm.filled_by,
       });
       setShowAddSectionModal(false);
@@ -222,7 +222,7 @@ export default function FormBuilder() {
       await apiClient.put(`/templates/sections/${selectedSection.id}`, {
         title: sectionForm.title.trim(),
         name: sectionForm.title.trim(),
-        order: Number(sectionForm.order),
+        order: String(Number(sectionForm.order) || 1),
         filled_by: sectionForm.filled_by,
       });
       setShowEditSectionModal(false);
@@ -880,7 +880,8 @@ export default function FormBuilder() {
                     <select
                       value={questionForm.type}
                       onChange={(e) => setQuestionForm({ ...questionForm, type: e.target.value })}
-                      className="base-select text-xs w-full rounded-2xl"
+                      disabled={showEditQuestionModal}
+                      className="base-select text-xs w-full rounded-2xl disabled:bg-gray-100"
                     >
                       <option value="radio">Chọn một đáp án</option>
                       <option value="checkbox">Chọn nhiều đáp án</option>

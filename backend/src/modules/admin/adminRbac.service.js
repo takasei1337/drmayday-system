@@ -4,7 +4,7 @@ const prisma = require('../../config/prisma');
 const { createSheetError } = require('../../common/response');
 
 const VN_PHONE_REGEX = /^(03|05|07|08|09)[0-9]{8}$/;
-const PERMISSION_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_.:-]*$/;
+const PERMISSION_NAME_REGEX = /^[a-z][a-z0-9_]*$/;
 const MAX_ROLE_PERMISSIONS_BATCH = 50;
 const XSS_PATTERN =
   /<\s*\/?\s*[a-zA-Z][^>]*>|<\s*(script|iframe|object|embed|svg|img|body|style|link|meta|form|input|button|a)\b|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on(?:error|load|click|mouseover|focus|blur|submit|change|input|keydown|keyup|mouseenter|mouseleave)\s*=/i;

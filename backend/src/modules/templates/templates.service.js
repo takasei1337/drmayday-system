@@ -102,50 +102,48 @@ function isPositiveInt32(val) {
 }
 
 function parseBoolFlag(value, defaultValue = false, fieldName = 'flag') {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  if (typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} phải là chuỗi ("0" hoặc "1")`, 1003, 400);
+  }
+  const normalized = value.trim();
+  if (normalized === '1') return true;
+  if (normalized === '0') return false;
+  throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
+}
+
+function parseQueryBoolFlag(value, defaultValue = false, fieldName = 'flag') {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
   }
-  if (typeof value === 'object') {
+  if (typeof value !== 'string') {
     throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
   }
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') {
-    if (value === 1) return true;
-    if (value === 0) return false;
-    throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
-  }
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === '1' || normalized === 'true') return true;
-    if (normalized === '0' || normalized === 'false') return false;
-    throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
-  }
-  throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  const normalized = value.trim().toLowerCase();
+  if (normalized === '1' || normalized === 'true') return true;
+  if (normalized === '0' || normalized === 'false') return false;
+  throw createSheetError(`Giá trị ${fieldName} không hợp lệ (chỉ nhận "0" hoặc "1")`, 1004, 400);
 }
 
-function parseNonNegativeInt(value, fieldName) {
-  if (value === undefined || value === null || value === '') {
+function parseNonNegativeInt(value, fieldName, { max = 9999 } = {}) {
+  if (value === undefined || value === null) {
     throw createSheetError(`Thiếu tham số bắt buộc: ${fieldName}`, 1002, 400);
   }
-  if (typeof value === 'boolean' || typeof value === 'object') {
-    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  if (typeof value !== 'string') {
+    throw createSheetError(`Kiểu dữ liệu ${fieldName} phải là chuỗi số nguyên`, 1003, 400);
   }
-  if (typeof value !== 'number' && typeof value !== 'string') {
-    throw createSheetError(`Kiểu dữ liệu ${fieldName} không hợp lệ`, 1003, 400);
+  const str = value.trim();
+  if (!str) {
+    throw createSheetError(`Giá trị ${fieldName} không được rỗng`, 1004, 400);
   }
-  if (typeof value === 'string' && value.trim() === '') {
-    throw createSheetError(`Giá trị ${fieldName} không được chỉ chứa khoảng trắng`, 1004, 400);
-  }
-  if (typeof value === 'number' && !Number.isInteger(value)) {
-    throw createSheetError(`Giá trị ${fieldName} phải là số nguyên`, 1004, 400);
-  }
-  const str = String(value).trim();
   if (!/^-?\d+$/.test(str)) {
-    throw createSheetError(`Giá trị ${fieldName} phải là số nguyên`, 1004, 400);
+    throw createSheetError(`Giá trị ${fieldName} phải là chuỗi số nguyên`, 1004, 400);
   }
   const num = Number(str);
-  if (!Number.isSafeInteger(num) || num < 0 || num > MAX_INT32) {
-    throw createSheetError(`Giá trị ${fieldName} không hợp lệ`, 1004, 400);
+  if (!Number.isSafeInteger(num) || num < 0 || num > max) {
+    throw createSheetError(`Giá trị ${fieldName} không hợp lệ (0-${max})`, 1004, 400);
   }
   return num;
 }
@@ -174,21 +172,21 @@ function parseVersionInput(versionInput, defaultText = '1.0') {
 }
 
 function parseFilledBy(value, defaultValue = 'patient') {
-  if (value === undefined || value === null || value === '') {
+  if (value === undefined || value === null) {
     return defaultValue;
   }
   if (typeof value !== 'string') {
-    throw createSheetError('Kiểu dữ liệu filled_by không hợp lệ', 1003, 400);
+    throw createSheetError('Kiểu dữ liệu filled_by phải là chuỗi', 1003, 400);
   }
-  const normalized = value.trim().toLowerCase();
-  if (!normalized || !ALLOWED_FILLED_BY.has(normalized)) {
+  const trimmed = value.trim();
+  if (!trimmed || !ALLOWED_FILLED_BY.has(trimmed)) {
     throw createSheetError(
-      'Giá trị filled_by không hợp lệ (chỉ nhận: patient, doctor, patdoc, both)',
+      'Giá trị filled_by không hợp lệ (chỉ nhận chữ thường: patient, doctor, patdoc, both)',
       1004,
       400
     );
   }
-  return normalized;
+  return trimmed;
 }
 
 function serializeShowIfAnswer(value) {
@@ -214,9 +212,12 @@ function formatStoredOptions(rawOptions) {
     option_text: opt.option_text ?? '',
     option_value: opt.option_value ?? '',
     order: String(opt.order ?? idx + 1),
-    trigger_image_upload: parseBoolFlag(opt.trigger_image_upload, false, 'trigger_image_upload')
-      ? '1'
-      : '0',
+    trigger_image_upload:
+      opt.trigger_image_upload === true ||
+      opt.trigger_image_upload === 1 ||
+      String(opt.trigger_image_upload) === '1'
+        ? '1'
+        : '0',
   }));
 }
 
@@ -231,9 +232,16 @@ function mapPrismaKnownError(err) {
 }
 
 async function resolveTemplate(idOrCode, includeTree = false) {
-  const key = idOrCode !== undefined && idOrCode !== null ? String(idOrCode).trim() : '';
-  if (!key) {
+  if (idOrCode === undefined || idOrCode === null || idOrCode === '') {
     throw createSheetError('Thiếu mã định danh mẫu phiếu khám', 1002, 400);
+  }
+  const raw = String(idOrCode);
+  const key = raw.trim();
+  if (!key) {
+    throw createSheetError('Mã định danh mẫu phiếu khám không hợp lệ', 1004, 400);
+  }
+  if (!isPositiveInt32(key) && (!CODE_REGEX.test(key) || key !== raw || key.length > 100)) {
+    throw createSheetError('Định dạng template_id không hợp lệ', 1004, 400);
   }
 
   const where = isPositiveInt32(key)
@@ -319,7 +327,7 @@ class TemplatesService {
 
     const where = {};
     if (query.is_active !== undefined && query.is_active !== '') {
-      where.isActive = parseBoolFlag(query.is_active, true, 'is_active');
+      where.isActive = parseQueryBoolFlag(query.is_active, true, 'is_active');
     }
 
     const skip = (page - 1) * limit;
@@ -881,6 +889,7 @@ class TemplatesService {
       if (!Array.isArray(options)) {
         throw createSheetError('options phải là một mảng', 1003, 400);
       }
+      const seenOptionValues = new Set();
       normalizedOptions = options.map((opt, idx) => {
         if (!opt || typeof opt !== 'object' || Array.isArray(opt)) {
           throw createSheetError('Phần tử trong options không hợp lệ', 1003, 400);
@@ -897,8 +906,13 @@ class TemplatesService {
         }
         const optText = validateRequiredText(opt.option_text, 'options.option_text', 255);
         const optValue = validateRequiredText(opt.option_value, 'options.option_value', 100);
+        const optValueKey = optValue.toLowerCase();
+        if (seenOptionValues.has(optValueKey)) {
+          throw createSheetError(`Giá trị option_value "${optValue}" bị trùng lặp`, 1004, 400);
+        }
+        seenOptionValues.add(optValueKey);
         const optOrder =
-          opt.order !== undefined && opt.order !== null && opt.order !== ''
+          opt.order !== undefined && opt.order !== null
             ? String(parseNonNegativeInt(opt.order, 'options.order'))
             : String(idx + 1);
         return {
@@ -980,18 +994,7 @@ class TemplatesService {
       options,
     } = body;
 
-    if (
-      question_text === undefined &&
-      type_question === undefined &&
-      placeholder === undefined &&
-      order === undefined &&
-      is_required === undefined &&
-      parent_question_id === undefined &&
-      show_if_answer === undefined &&
-      help_text === undefined &&
-      allow_image === undefined &&
-      options === undefined
-    ) {
+    if (Object.keys(body).length === 0) {
       throw createSheetError('Thiếu dữ liệu cập nhật câu hỏi', 1002, 400);
     }
 
@@ -1002,21 +1005,7 @@ class TemplatesService {
       updateData.questionText = validateOptionalText(question_text, 'question_text', 500);
     }
 
-    if (type_question !== undefined) {
-      if (typeof type_question !== 'string') {
-        throw createSheetError('Kiểu dữ liệu type_question không hợp lệ', 1003, 400);
-      }
-      const trimmedType = type_question.trim().toLowerCase();
-      if (!trimmedType || !ALLOWED_QUESTION_TYPES.has(trimmedType)) {
-        throw createSheetError(
-          'type_question không hợp lệ (text, number, radio, checkbox, select, multi_select, file_upload...)',
-          1004,
-          400
-        );
-      }
-      updateData.questionType = trimmedType;
-    }
-
+    // type_question, question_id, section_id là bất biến sau khi tạo (W5-QED-18: bỏ qua khi PUT)
     if (order !== undefined) {
       updateData.orderIndex = parseNonNegativeInt(order, 'order');
     }
@@ -1106,6 +1095,7 @@ class TemplatesService {
           }
         }
 
+        const seenOptionValues = new Set();
         finalOptions = options.map((opt, idx) => {
           if (!opt || typeof opt !== 'object' || Array.isArray(opt)) {
             throw createSheetError('Phần tử trong options không hợp lệ', 1003, 400);
@@ -1137,8 +1127,14 @@ class TemplatesService {
             throw createSheetError('Mỗi lựa chọn cần có option_text và option_value', 1002, 400);
           }
 
+          const optValueKey = String(optionValue).trim().toLowerCase();
+          if (seenOptionValues.has(optValueKey)) {
+            throw createSheetError(`Giá trị option_value "${optionValue}" bị trùng lặp`, 1004, 400);
+          }
+          seenOptionValues.add(optValueKey);
+
           const optOrder =
-            opt.order !== undefined && opt.order !== null && opt.order !== ''
+            opt.order !== undefined && opt.order !== null
               ? String(parseNonNegativeInt(opt.order, 'options.order'))
               : existingOpt?.order ?? String(idx + 1);
 
