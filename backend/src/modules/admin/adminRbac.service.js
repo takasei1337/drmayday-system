@@ -4,6 +4,8 @@ const prisma = require('../../config/prisma');
 const { createSheetError } = require('../../common/response');
 
 const VN_PHONE_REGEX = /^(03|05|07|08|09)[0-9]{8}$/;
+const PERMISSION_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_.:-]*$/;
+const MAX_ROLE_PERMISSIONS_BATCH = 50;
 
 const GENDER_INPUT_MAP = {
   male: { dbGender: 'Nam', rawGender: 'male' },
@@ -710,21 +712,38 @@ class AdminRbacService {
 
   // 9. POST /permissions
   async createPermission(payload = {}) {
-    if (payload.name === undefined || payload.name === null || String(payload.name).trim() === '') {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createSheetError('Kiểu dữ liệu payload không hợp lệ', 1003, 400);
+    }
+    if (payload.name === undefined || payload.name === null || payload.name === '') {
       throw createSheetError('Thiếu tên quyền hạn (name)', 1002, 400);
     }
     if (typeof payload.name !== 'string') {
       throw createSheetError('Kiểu dữ liệu name không hợp lệ', 1003, 400);
     }
+    if (
+      payload.description !== undefined &&
+      payload.description !== null &&
+      typeof payload.description !== 'string'
+    ) {
+      throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
+    }
 
     const name = payload.name.trim();
-    if (name.length > 100) {
-      throw createSheetError('Tên quyền hạn tối đa 100 ký tự', 1004, 400);
+    if (!name) {
+      throw createSheetError('Tên quyền hạn không được chỉ chứa khoảng trắng', 1004, 400);
+    }
+    if (name.length > 100 || !PERMISSION_NAME_REGEX.test(name)) {
+      throw createSheetError(
+        'Tên quyền hạn không đúng định dạng (bắt đầu bằng chữ cái, chỉ gồm chữ, số, _, ., :, - và tối đa 100 ký tự)',
+        1004,
+        400
+      );
     }
 
     const description =
       payload.description !== undefined && payload.description !== null
-        ? String(payload.description)
+        ? payload.description
         : null;
 
     const dupCheck = await db.query(
@@ -739,7 +758,7 @@ class AdminRbacService {
       `
       INSERT INTO public.quyenhan (ten_quyen_han, nhom_quyen, mo_ta)
       VALUES ($1, 'GENERAL', $2)
-      RETURNING ma_quyen_han, ten_quyen_han, mo_ta
+      RETURNING ma_quyen_han, ten_quyen_han, mo_ta, thoi_diem_tao, thoi_diem_cap_nhat
       `,
       [name, description]
     );
@@ -749,6 +768,8 @@ class AdminRbacService {
       id: Number(created.ma_quyen_han),
       name: created.ten_quyen_han,
       description: created.mo_ta ?? null,
+      created_at: toIsoOrNull(created.thoi_diem_tao),
+      updated_at: toIsoOrNull(created.thoi_diem_cap_nhat),
     };
   }
 
@@ -774,6 +795,37 @@ class AdminRbacService {
   async updatePermission(rawId, payload = {}) {
     const permId = parsePositiveInt(rawId, 'id', { required: true });
 
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createSheetError('Kiểu dữ liệu payload không hợp lệ', 1003, 400);
+    }
+
+    const hasName = payload.name !== undefined;
+    const hasDescription = payload.description !== undefined;
+    if (!hasName && !hasDescription) {
+      throw createSheetError('Thiếu dữ liệu cập nhật (name hoặc description)', 1002, 400);
+    }
+
+    let nextName = null;
+    if (hasName) {
+      if (typeof payload.name !== 'string') {
+        throw createSheetError('Kiểu dữ liệu name không hợp lệ', 1003, 400);
+      }
+      nextName = payload.name.trim();
+      if (!nextName || nextName.length > 100 || !PERMISSION_NAME_REGEX.test(nextName)) {
+        throw createSheetError(
+          'Tên quyền hạn không đúng định dạng hoặc vượt quá 100 ký tự',
+          1004,
+          400
+        );
+      }
+    }
+
+    if (hasDescription && payload.description !== null && typeof payload.description !== 'string') {
+      throw createSheetError('Kiểu dữ liệu description không hợp lệ', 1003, 400);
+    }
+    const nextDescription =
+      hasDescription && payload.description !== null ? payload.description : null;
+
     const existRes = await db.query(
       'SELECT ma_quyen_han FROM public.quyenhan WHERE ma_quyen_han = $1 LIMIT 1',
       [permId]
@@ -782,16 +834,7 @@ class AdminRbacService {
       throw createSheetError('Quyền hạn không tồn tại', 9992, 404);
     }
 
-    let nextName = null;
-    if (payload.name !== undefined) {
-      if (typeof payload.name !== 'string' || payload.name.trim() === '') {
-        throw createSheetError('Tên quyền hạn không hợp lệ', 1004, 400);
-      }
-      nextName = payload.name.trim();
-      if (nextName.length > 100) {
-        throw createSheetError('Tên quyền hạn tối đa 100 ký tự', 1004, 400);
-      }
-
+    if (nextName !== null) {
       const dupCheck = await db.query(
         'SELECT ma_quyen_han FROM public.quyenhan WHERE LOWER(ten_quyen_han) = LOWER($1) AND ma_quyen_han <> $2 LIMIT 1',
         [nextName, permId]
@@ -801,16 +844,12 @@ class AdminRbacService {
       }
     }
 
-    const hasDescription = payload.description !== undefined;
-    const nextDescription =
-      hasDescription && payload.description !== null ? String(payload.description) : null;
-
     const updateRes = await db.query(
       `
       UPDATE public.quyenhan
       SET ten_quyen_han = COALESCE($1, ten_quyen_han),
           mo_ta = CASE WHEN $2::boolean THEN $3 ELSE mo_ta END,
-          thoi_diem_cap_nhat = NOW()
+          thoi_diem_cap_nhat = GREATEST(NOW(), thoi_diem_tao + INTERVAL '1 millisecond', thoi_diem_cap_nhat + INTERVAL '1 millisecond')
       WHERE ma_quyen_han = $4
       RETURNING ma_quyen_han, ten_quyen_han, mo_ta, thoi_diem_tao, thoi_diem_cap_nhat
       `,
@@ -848,26 +887,47 @@ class AdminRbacService {
 
   // 13. POST /role_permissions
   async assignRolePermissions(payload = {}, currentUser = null) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createSheetError('Kiểu dữ liệu payload không hợp lệ', 1003, 400);
+    }
+
+    const rawPermissions =
+      payload.permissions !== undefined ? payload.permissions : payload.permission_ids;
+
     if (
       payload.role_id === undefined ||
       payload.role_id === null ||
       payload.role_id === '' ||
-      payload.permissions === undefined ||
-      payload.permissions === null
+      rawPermissions === undefined ||
+      rawPermissions === null
     ) {
-      throw createSheetError('Thiếu role_id hoặc danh sách permissions', 1002, 400);
+      throw createSheetError('Thiếu role_id hoặc danh sách quyền hạn', 1002, 400);
     }
 
     const roleId = parsePositiveInt(payload.role_id, 'role_id', { required: true });
-    if (!Array.isArray(payload.permissions)) {
-      throw createSheetError('permissions phải là một mảng ID quyền hạn', 1003, 400);
+    if (!Array.isArray(rawPermissions)) {
+      throw createSheetError('Danh sách quyền hạn phải là một mảng ID quyền hạn', 1003, 400);
     }
-    if (payload.permissions.length === 0) {
-      throw createSheetError('Danh sách permissions không được rỗng', 1004, 400);
+    if (rawPermissions.length === 0) {
+      throw createSheetError('Danh sách quyền hạn không được rỗng', 1004, 400);
+    }
+    if (rawPermissions.length > MAX_ROLE_PERMISSIONS_BATCH) {
+      throw createSheetError(
+        `Số lượng quyền hạn gán một lần không được vượt quá ${MAX_ROLE_PERMISSIONS_BATCH}`,
+        1004,
+        400
+      );
     }
 
     const uniquePermIds = Array.from(
-      new Set(payload.permissions.map((p) => parsePositiveInt(p, 'permission_id', { required: true })))
+      new Set(
+        rawPermissions.map((p) => {
+          if (p === undefined || p === null || p === '') {
+            throw createSheetError('Kiểu dữ liệu phần tử permission_id không hợp lệ', 1003, 400);
+          }
+          return parsePositiveInt(p, 'permission_id', { required: true });
+        })
+      )
     );
 
     const roleRes = await db.query(
