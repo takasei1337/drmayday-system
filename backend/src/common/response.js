@@ -31,11 +31,19 @@ const DETAIL_TO_MERGED_CODE = {
   // 9992: Post is not existed (3007, 4001, 4008, 4101, 4103, 4104, 6005, 7001, 7002, 7003, 8103, 9102)
   3007: 9992, 4001: 9992, 4008: 9992, 4101: 9992, 4103: 9992, 4104: 9992,
   6005: 9992, 7001: 9992, 7002: 9992, 7003: 9992, 8103: 9992, 9102: 9992,
+<<<<<<< HEAD
   3201: 9992, 3203: 9992, 3301: 9992, 3303: 9992, 3304: 9992, 4002: 9994,
   // 9993: Code verify is incorrect (3004, 3005)
   3004: 9993, 3005: 9993,
   // 9994: No Data or end of list data (4002, 5001)
   5001: 9994,
+=======
+  3201: 9992, 3203: 9992, 3301: 9992, 3303: 9992, 3304: 9992,
+  // 9993: Code verify is incorrect (3004, 3005)
+  3004: 9993, 3005: 9993,
+  // 9994: No Data or end of list data (4002, 5001)
+  4002: 9994, 5001: 9994,
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
   // 9995: User is not validated (3008, 3009)
   3008: 9995, 3009: 9995,
   // 9996: User existed. (3006, 4102)
@@ -62,12 +70,16 @@ const DETAIL_TO_MERGED_CODE = {
   4003: 1010, 4005: 1010, 4105: 1010, 5002: 1010, 6006: 1010, 8003: 1010,
 };
 
+<<<<<<< HEAD
 const DB_ERROR_STRINGS = new Set([
   'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH',
   'P1001', 'P1002', 'P1008', 'P1017', '08001', '08006', '57P01', '57P02', '57P03',
 ]);
 
 function mapToMergedCode(rawCode, fallbackCode = 1005) {
+=======
+function mapToMergedCode(rawCode, fallbackCode = 9999) {
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
   const n = Number(rawCode);
   if (Number.isFinite(n)) {
     if (MERGED_RESPONSE_CODES[n]) return n;
@@ -76,6 +88,7 @@ function mapToMergedCode(rawCode, fallbackCode = 1005) {
   return fallbackCode;
 }
 
+<<<<<<< HEAD
 function resolveMergedCode(rawCode, statusCode = 500, errorObj = null) {
   const errCodeStr = typeof rawCode === 'string'
     ? rawCode.trim()
@@ -103,6 +116,8 @@ function resolveMergedCode(rawCode, statusCode = 500, errorObj = null) {
   return 1005;
 }
 
+=======
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
 function createSheetError(message, code = 1005, statusCode = null) {
   const merged = mapToMergedCode(code, 1005);
   const def = MERGED_RESPONSE_CODES[merged] || MERGED_RESPONSE_CODES[1005];
@@ -131,7 +146,12 @@ const sheetSuccess = (res, data = {}, message = 'OK', statusCode = 200, extraTop
  * Phản hồi lỗi chuẩn Sheet Tab 3 (Bảng mã gộp): { code: "<merged>", message, data: {} }
  */
 const sheetError = (res, message = null, statusCode = null, rawCode = 9999, data = {}) => {
+<<<<<<< HEAD
   const merged = resolveMergedCode(rawCode, statusCode || 400);
+=======
+  const fallback = statusCode === 400 ? 1002 : statusCode === 404 ? 9992 : 9999;
+  const merged = mapToMergedCode(rawCode, fallback);
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
   const def = MERGED_RESPONSE_CODES[merged] || MERGED_RESPONSE_CODES[9999];
   return res.status(statusCode || def.httpStatus || 400).json({
     code: String(merged),
@@ -145,6 +165,7 @@ const successResponse = (res, data = null, message = 'OK', statusCode = 200) => 
   return sheetSuccess(res, data, message, statusCode);
 };
 
+<<<<<<< HEAD
 const errorResponse = (res, message = 'Exception error.', statusCode = 500, code = null, error = null) => {
   const resolved = resolveMergedCode(code, statusCode, error);
   return sheetError(res, message, statusCode, resolved);
@@ -162,14 +183,23 @@ const handleControllerError = (res, next, err) => {
     return errorResponse(res, err.message, statusCode, code, err);
   }
   return next(err);
+=======
+const errorResponse = (res, message = 'Exception error.', statusCode = 500, code = null) => {
+  const fallback = statusCode === 400 ? 1002 : statusCode === 404 ? 9992 : 9999;
+  return sheetError(res, message, statusCode, code || fallback);
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
 };
 
 module.exports = {
   MERGED_RESPONSE_CODES,
   DETAIL_TO_MERGED_CODE,
+<<<<<<< HEAD
   LEGACY_TO_MERGED_CODE: DETAIL_TO_MERGED_CODE,
   mapToMergedCode,
   resolveMergedCode,
+=======
+  mapToMergedCode,
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
   createSheetError,
   sheetSuccess,
   sheetError,

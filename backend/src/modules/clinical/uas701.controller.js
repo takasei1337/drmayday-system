@@ -1,7 +1,7 @@
 'use strict';
 
 const uas701Service = require('./uas701.service');
-const { errorResponse } = require('../../common/response');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Uas701Controller {
   /**
@@ -11,13 +11,9 @@ class Uas701Controller {
   async checkEligibility(req, res, next) {
     try {
       const data = await uas701Service.checkEligibility(req.user);
-      return res.status(200).json({
-        code: 1000,
-        message: 'OK',
-        data,
-      });
+      return sheetSuccess(res, data, 'OK', 200);
     } catch (err) {
-      if (err.code) {
+      if (typeof err.code === 'number') {
         return errorResponse(res, err.message, err.statusCode || 400, err.code);
       }
       next(err);

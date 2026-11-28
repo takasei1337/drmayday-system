@@ -1,5 +1,5 @@
 const medrec04Service = require('./medrec04.service');
-const { errorResponse } = require('../../common/response');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Medrec04Controller {
   /**
@@ -9,13 +9,9 @@ class Medrec04Controller {
   async getAllMedicalRecords(req, res, next) {
     try {
       const data = await medrec04Service.getAllMedicalRecords(req.query);
-      return res.status(200).json({
-        code: 1000,
-        message: 'OK',
-        data,
-      });
+      return sheetSuccess(res, data, 'OK', 200);
     } catch (err) {
-      if (err.code) {
+      if (typeof err.code === 'number') {
         return errorResponse(res, err.message, err.statusCode || 400, err.code);
       }
       next(err);

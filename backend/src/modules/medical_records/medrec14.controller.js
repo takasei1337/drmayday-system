@@ -1,5 +1,5 @@
 const medrec14Service = require('./medrec14.service');
-const { errorResponse } = require('../../common/response');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Medrec14Controller {
   /**
@@ -9,13 +9,9 @@ class Medrec14Controller {
   async deleteMedicalRecord(req, res, next) {
     try {
       const data = await medrec14Service.deleteMedicalRecord(req.params.id);
-      return res.status(200).json({
-        code: 1000,
-        message: 'Xóa bệnh án thành công',
-        data,
-      });
+      return sheetSuccess(res, data, 'Xóa bệnh án thành công', 200);
     } catch (err) {
-      if (err.code) {
+      if (typeof err.code === 'number') {
         return errorResponse(res, err.message, err.statusCode || 400, err.code);
       }
       next(err);

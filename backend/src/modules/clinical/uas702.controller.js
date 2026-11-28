@@ -1,7 +1,7 @@
 'use strict';
 
 const uas702Service = require('./uas702.service');
-const { errorResponse } = require('../../common/response');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Uas702Controller {
   /**
@@ -11,13 +11,9 @@ class Uas702Controller {
   async createUas7Score(req, res, next) {
     try {
       const data = await uas702Service.createUas7Score(req.body, req.user);
-      return res.status(201).json({
-        code: 1001,
-        message: 'Created successfully',
-        data,
-      });
+      return sheetSuccess(res, data, 'Created successfully', 201);
     } catch (err) {
-      if (err.code) {
+      if (typeof err.code === 'number') {
         return errorResponse(res, err.message, err.statusCode || 400, err.code);
       }
       next(err);

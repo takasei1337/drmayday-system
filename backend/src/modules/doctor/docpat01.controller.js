@@ -1,4 +1,5 @@
 const docpat01Service = require('./docpat01.service');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Docpat01Controller {
   /**
@@ -7,10 +8,7 @@ class Docpat01Controller {
   async searchPatients(req, res, next) {
     try {
       const result = await docpat01Service.searchPatients(req.query);
-      return res.status(200).json({
-        code: 1000,
-        message: 'Tìm kiếm bệnh nhân thành công',
-        data: result.patients,
+      return sheetSuccess(res, result.patients, 'Tìm kiếm bệnh nhân thành công', 200, {
         total_records: result.total_records,
       });
     } catch (err) {

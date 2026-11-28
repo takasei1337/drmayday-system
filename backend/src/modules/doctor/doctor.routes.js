@@ -11,7 +11,7 @@ const docpat02Controller = require('./docpat02.controller');
  * Phân quyền bắt buộc: BAC_SI hoặc ADMIN
  */
 router.use(authenticate);
-router.use(authorize(['BAC_SI', 'ADMIN']));
+router.use(authorize(['bac_si', 'admin']));
 
 /**
  * ========================================================

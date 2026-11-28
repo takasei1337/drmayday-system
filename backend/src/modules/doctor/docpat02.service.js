@@ -128,11 +128,17 @@ class Docpat02Service {
       const ma_nguoi = nguoiRes.rows[0].ma_nguoi;
       const thoi_diem_tao = nguoiRes.rows[0].thoi_diem_tao;
 
-      // Bước 2: Lấy mã vai trò Bệnh nhân
+      // Bước 2: Lấy mã vai trò Bệnh nhân ('benh_nhan' trong public.vaitro)
       const roleRes = await client.query(
-        "SELECT ma_vai_tro FROM public.vaitro WHERE ten_vai_tro = 'BENH_NHAN' OR LOWER(ten_vai_tro) = 'patient' LIMIT 1"
+        "SELECT ma_vai_tro FROM public.vaitro WHERE LOWER(ten_vai_tro) IN ('benh_nhan', 'patient') ORDER BY CASE WHEN LOWER(ten_vai_tro) = 'benh_nhan' THEN 0 ELSE 1 END LIMIT 1"
       );
-      const roleId = roleRes.rows[0] ? roleRes.rows[0].ma_vai_tro : 3;
+      if (roleRes.rows.length === 0) {
+        const err = new Error('Không tìm thấy vai trò benh_nhan trong hệ thống');
+        err.code = 9902;
+        err.statusCode = 500;
+        throw err;
+      }
+      const roleId = roleRes.rows[0].ma_vai_tro;
 
       // Bước 3: Tạo tài khoản đăng nhập trong taikhoan
       const tkQuery = `

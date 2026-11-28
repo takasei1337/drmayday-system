@@ -45,7 +45,7 @@ router.post('/', medrec03Controller.createMedicalRecord);
  */
 router.get(
   '/all',
-  authorize(['ADMIN', 'BAC_SI', 'DIEU_DUONG', 'LE_TAN']),
+  authorize(['admin', 'bac_si', 'dieu_duong', 'le_tan']),
   medrec04Controller.getAllMedicalRecords
 );
 
@@ -61,7 +61,7 @@ router.get('/patients/:id/history', medrec13Controller.getPatientHistory);
  */
 router.post(
   '/:id/accept',
-  authorize(['BAC_SI', 'ADMIN']),
+  authorize(['bac_si', 'admin']),
   medrec07Controller.acceptMedicalRecord
 );
 
@@ -95,7 +95,7 @@ router.get('/:id', medrec05Controller.getMedicalRecordById);
  */
 router.put(
   '/:id',
-  authorize(['BAC_SI', 'ADMIN']),
+  authorize(['bac_si', 'admin']),
   medrec11Controller.completeMedicalRecord
 );
 
@@ -103,7 +103,7 @@ router.put(
  * medrec14: Admin xóa toàn bộ hồ sơ bệnh án
  * DELETE /api/v1/medical_records/:id/
  */
-router.delete('/:id', authorize(['ADMIN']), medrec14Controller.deleteMedicalRecord);
+router.delete('/:id', authorize(['admin']), medrec14Controller.deleteMedicalRecord);
 
 module.exports = router;
 

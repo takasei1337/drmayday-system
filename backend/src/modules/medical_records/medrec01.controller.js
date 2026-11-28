@@ -1,4 +1,5 @@
 const medrec01Service = require('./medrec01.service');
+const { sheetSuccess, errorResponse } = require('../../common/response');
 
 class Medrec01Controller {
   /**
@@ -8,11 +9,7 @@ class Medrec01Controller {
   async getClassifyQuestions(req, res, next) {
     try {
       const data = await medrec01Service.getClassifyQuestions();
-      return res.status(200).json({
-        code: 1000,
-        message: 'Lấy danh sách câu hỏi phân loại thành công',
-        data,
-      });
+      return sheetSuccess(res, data, 'Lấy danh sách câu hỏi phân loại thành công', 200);
     } catch (err) {
       next(err);
     }

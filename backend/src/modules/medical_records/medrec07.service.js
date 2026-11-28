@@ -14,7 +14,7 @@ class Medrec07Service {
    */
   async acceptMedicalRecord(idParam, user) {
     const recordId = parsePositiveRecordId(idParam);
-    const doctorId = Number(user?.ma_tai_khoan || user?.ma_nguoi);
+    const doctorId = Number(user?.ma_tai_khoan || user?.ma_nguoi || user?.user_id || user?.id);
 
     if (!doctorId) {
       throw createBusinessError('User not authenticated', 3003, 401);

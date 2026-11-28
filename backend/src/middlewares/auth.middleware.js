@@ -12,9 +12,15 @@ const authenticate = async (req, res, next) => {
     return sheetError(res, 'Token is invalid. (Thiếu header Authorization)', 401, 9998);
   }
 
+<<<<<<< HEAD
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
     return sheetError(res, 'Token is invalid. (Sai định dạng Bearer <token>)', 401, 9998);
+=======
+  const parts = authHeader.trim().split(/\s+/);
+  if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer' || !parts[1]) {
+    return errorResponse(res, 'Định dạng token không đúng chuẩn: Bearer <token>', 401, 3001);
+>>>>>>> 0ad0325 (fix(backend): standardize sheetSuccess/merged response codes, fix docpat02 role_id & medrec02/07/08)
   }
 
   const token = parts[1];

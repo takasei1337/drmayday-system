@@ -14,14 +14,24 @@ function createBusinessError(message, code, statusCode = 400) {
 }
 
 /**
- * Parse và kiểm tra ID hồ sơ bệnh án hợp lệ (trả lỗi 4001 nếu sai định dạng)
+ * Parse và kiểm tra ID hồ sơ bệnh án hợp lệ.
+ * Trả lỗi 2003 (1004 - Parameter value is invalid) nếu không phải số nguyên dương hoặc vượt quá giới hạn INT4.
  */
 function parsePositiveRecordId(idParam) {
   const rawId = idParam !== undefined && idParam !== null ? String(idParam).trim() : '';
-  if (!/^\d+$/.test(rawId) || parseInt(rawId, 10) <= 0) {
-    throw createBusinessError('Medical record not found', 4001, 404);
+  if (!/^\d+$/.test(rawId)) {
+    throw createBusinessError('Invalid parameter value: id', 2003, 400);
   }
-  return parseInt(rawId, 10);
+  try {
+    const bigVal = BigInt(rawId);
+    if (bigVal <= 0n || bigVal > 2147483647n) {
+      throw createBusinessError('Invalid parameter value: id', 2003, 400);
+    }
+    return Number(bigVal);
+  } catch (err) {
+    if (err.code) throw err;
+    throw createBusinessError('Invalid parameter value: id', 2003, 400);
+  }
 }
 
 /**

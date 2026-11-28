@@ -93,9 +93,9 @@ class AuthService {
 
       // 2. Lấy role BENH_NHAN
       const vtRes = await client.query(
-        "SELECT ma_vai_tro FROM public.vaitro WHERE ten_vai_tro = 'BENH_NHAN' OR LOWER(ten_vai_tro) = 'patient' LIMIT 1"
+        "SELECT ma_vai_tro FROM public.vaitro WHERE LOWER(ten_vai_tro) IN ('benh_nhan', 'patient') ORDER BY CASE WHEN LOWER(ten_vai_tro) = 'benh_nhan' THEN 0 ELSE 1 END LIMIT 1"
       );
-      const roleId = vtRes.rows[0] ? vtRes.rows[0].ma_vai_tro : 3;
+      const roleId = vtRes.rows[0] ? vtRes.rows[0].ma_vai_tro : 4;
 
       // 3. Thêm vào bảng taikhoan
       const tkQuery = `
